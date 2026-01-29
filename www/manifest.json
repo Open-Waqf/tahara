@@ -1,0 +1,29 @@
+{
+  "name": "Tahara - Islamic Purity Tracker",
+  "short_name": "Tahara",
+  "description": "A private, minimalist, and offline-first Islamic Purity tracker.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "theme_color": "#f7efe4",
+  "background_color": "#f7efe4",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./img/favicon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "./img/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./img/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#fff1f2">
+    <title>Tahara - Islamic Purity & Salah Tracker | طهارة</title>
+
+    <meta name="description"
+          content="A private, offline-first Islamic Purity tracker. Manage your states of Hayd and Tuhr with certainty. No ads, no tracking, 100% private.">
+    <meta name="keywords"
+          content="Tahara, Islamic Purity, Salah Tracker, Hayd, Tuhr, Ghusl, Fiqh, Muslim App, Private, Offline, طهارة, حيض, طهر">
+
+    <meta property="og:title" content="Tahara: Private Islamic Purity Tracker">
+    <meta property="og:description"
+          content="Track your purity states and Salah eligibility with total privacy. 100% Free & Open Source.">
+    <meta property="og:image" content="./img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://tahara.open-waqf.org/">
+    <meta property="og:type" content="website">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tahara - Purity Tracker">
+    <meta name="twitter:description" content="Manage Purity & Prayer states privately. No data collection.">
+    <meta name="twitter:image" content="./img/og-image.jpg">
+
+    <link rel="icon" type="image/png" href="./img/favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/svg+xml" href="./img/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/apple-touch-icon.png">
+    <link rel="manifest" href="./manifest.json">
+
+    <script src="./tailwind.3.4.17.js"></script>
+    <script>
+        tailwind.config = {darkMode: 'class'}
+    </script>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body class="transition-colors duration-300">
+<nav class="p-6 flex justify-between items-center">
+    <h1 class="text-2xl font-serif italic text-rose-400">طهارة</h1>
+    <div class="flex items-center gap-4">
+        <select id="langSelect"
+                class="text-[10px] bg-transparent font-bold uppercase tracking-tighter outline-none cursor-pointer text-rose-400 dark:text-rose-200">
+            <option value="ar" class="bg-white dark:bg-slate-900">AR</option>
+            <option value="en" class="bg-white dark:bg-slate-900">EN</option>
+        </select>
+        <button id="themeToggle"
+                class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center text-xs">
+            🌙
+        </button>
+    </div>
+</nav>
+
+<main class="flex-grow flex flex-col items-center justify-center p-6 text-center">
+    <div class="status-orb animate-fade-in">
+        <span class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-2 font-bold" data-i18n="current_status">Today</span>
+        <div id="current-state-text" class="text-3xl font-black text-rose-500">Purity</div>
+        <div id="time-elapsed" class="mt-4 text-[11px] text-rose-400 font-medium tracking-wide">0d 0h 0m 0s</div>
+    </div>
+
+    <p class="max-w-xs text-sm text-slate-400 mt-8 mb-12" data-i18n="status_desc">
+        You are eligible for Prayer and Fasting.
+    </p>
+
+    <button class="action-btn" id="mainActionBtn">
+        Mark Flow Started
+    </button>
+
+    <div id="history-drawer"
+         class="w-full max-w-xs mt-12 overflow-hidden transition-all duration-500 opacity-0 transform translate-y-10">
+        <h3 class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-4 font-bold" data-i18n="recent_history">
+            Recent Activity</h3>
+        <div id="history-list" class="space-y-3"></div>
+        <div id="appVersion" class="mt-8 text-[9px] text-rose-200 font-mono opacity-50"></div>
+    </div>
+</main>
+
+<div id="insightsModal" class="fixed inset-0 z-[10000] hidden flex items-end">
+    <div class="absolute inset-0 bg-rose-900/20 backdrop-blur-sm" onclick="closeInsights()"></div>
+    <div class="relative w-full bg-white dark:bg-[#1a1617] rounded-t-[3rem] p-8 shadow-2xl transition-transform duration-500 transform translate-y-full"
+         id="modalContent">
+        <div class="w-12 h-1.5 bg-rose-100 dark:bg-rose-900/40 rounded-full mx-auto mb-8"></div>
+        <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="full_insights">Full
+            Insights</h2>
+
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <div class="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-3xl text-center border border-rose-100 dark:border-rose-900/20">
+                <span class="block text-[10px] uppercase tracking-widest text-rose-300 mb-1" data-i18n="avg_cycle">Avg. Cycle</span>
+                <span id="avgCycleText" class="text-lg font-bold text-rose-500">--</span>
+            </div>
+            <div class="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-3xl text-center border border-amber-100 dark:border-amber-900/20">
+                <span class="block text-[10px] uppercase tracking-widest text-amber-300 mb-1" data-i18n="avg_purity">Avg. Purity</span>
+                <span id="avgPurityText" class="text-lg font-bold text-amber-600">--</span>
+            </div>
+        </div>
+
+        <div id="fullHistoryList" class="max-h-[40vh] overflow-y-auto space-y-4 no-scrollbar"></div>
+        <button onclick="closeInsights()"
+                class="w-full mt-8 py-4 bg-rose-50 dark:bg-rose-900/20 text-rose-500 font-bold rounded-full text-sm uppercase tracking-widest">
+            Close
+        </button>
+    </div>
+</div>
+<script type="module" src="./script.js"></script>
+
+<script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Tahara",
+        "applicationCategory": "HealthApplication",
+        "operatingSystem": "Android, iOS, Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "description": "An open-source, privacy-focused application for tracking Islamic purity states and Salah eligibility.",
+        "author": {
+            "@type": "Organization",
+            "name": "Open Waqf"
+        }
+    }
+</script>
+</body>
+</html>

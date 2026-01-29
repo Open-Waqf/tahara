@@ -1,0 +1,41 @@
+{
+  "default": {
+    "app_name": "طهارة",
+    "contact_email": "contact@open-waqf.org",
+    "website": "https://tahara.open-waqf.org/"
+  },
+  "en": {
+    "app_name": "Tahara",
+    "current_status": "Today",
+    "status_purity": "Purity",
+    "status_hayd": "Hayd",
+    "status_desc": "You are eligible for Prayer and Fasting.",
+    "status_hayd_desc": "Prayer and Fasting are currently paused.",
+    "recent_history": "Recent Activity",
+    "full_insights": "View Full Insights",
+    "clear_data": "Clear Data",
+    "clear_confirm": "Delete all history permanently?",
+    "delete_confirm": "Delete the last entry?",
+    "btn_start_flow": "Mark Flow Started",
+    "btn_end_flow": "Mark Purity Achieved",
+    "avg_cycle": "Avg. Hayd",
+    "avg_purity": "Avg. Purity"
+  },
+  "ar": {
+    "app_name": "طهارة",
+    "current_status": "اليوم",
+    "status_purity": "طهارة",
+    "status_hayd": "حيض",
+    "status_desc": "أنتِ في حالة طهارة، الصلاة والصيام واجبان.",
+    "status_hayd_desc": "الصلاة والصيام متوقفان حالياً.",
+    "recent_history": "النشاط الأخير",
+    "full_insights": "السجل الكامل",
+    "clear_data": "مسح كافة البيانات",
+    "clear_confirm": "هل أنتِ متأكدة من مسح كل السجلات؟",
+    "delete_confirm": "هل تريدين حذف آخر إدخال؟",
+    "btn_start_flow": "بدء الحيض",
+    "btn_end_flow": "تمت الطهارة",
+    "avg_cycle": "متوسط الحيض",
+    "avg_purity": "متوسط الطهر"
+  }
+}
