@@ -1,0 +1,41 @@
+name: Build and Deploy
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Cleaning Tools
+        run: npm install -g terser clean-css-cli
+
+      - name: Clean Comments (Keep Readable)
+        run: |
+          terser www/script.js --no-compress --no-mangle --format beautify=true,comments=false -o www/script.js
+
+          terser www/sw.js --no-compress --no-mangle --format beautify=true,comments=false -o www/sw.js
+          
+          cleancss --format beautify www/style.css -o www/style.css
+
+      - name: Deploy to Deploy Branch
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: www
+          branch: deploy
+          clean: true
+          git-config-name: "Open Waqf Bot"
+          git-config-email: "bot@open-waqf.org"
+          commit-message: "deploy: update website (automated)"
