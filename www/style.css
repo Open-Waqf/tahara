@@ -41,13 +41,12 @@ body {
     color: #334155;
 }
 
-/* --- DARK MODE (DUSTY ROSE) --- */
+/* --- DARK MODE --- */
 body.dark {
-    background: #1a1617; /* Warm Charcoal */
-    color: #fecdd3; /* Soft Pink Text */
+    background: #1a1617;
+    color: #fecdd3;
 }
 
-/* Dropdown in Dark Mode */
 body.dark #langSelect {
     background: rgba(255, 255, 255, 0.05);
     color: #fecdd3;
@@ -59,19 +58,13 @@ body.dark #langSelect option {
     color: #fecdd3;
 }
 
-/* Orb & Modal in Dark Mode */
 body.dark .status-orb {
     background: #241e1f;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
     border-color: #332a2c;
 }
 
-body.dark #modalContent {
-    background: #1f1a1b;
-    border-top: 1px solid #3d2e31;
-}
-
-/* --- COMPONENT STYLES --- */
+/* --- ORB --- */
 .status-orb {
     width: 280px;
     height: 280px;
@@ -99,12 +92,8 @@ body.dark #modalContent {
 }
 
 @keyframes rotate {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .status-hayd-pulse {
@@ -112,14 +101,8 @@ body.dark #modalContent {
 }
 
 @keyframes softPulse {
-    0%, 100% {
-        transform: scale(1);
-        box-shadow: 0 20px 50px rgba(251, 113, 133, 0.2);
-    }
-    50% {
-        transform: scale(1.02);
-        box-shadow: 0 20px 60px rgba(251, 113, 133, 0.4);
-    }
+    0%, 100% { transform: scale(1); box-shadow: 0 20px 50px rgba(251, 113, 133, 0.2); }
+    50% { transform: scale(1.02); box-shadow: 0 20px 60px rgba(251, 113, 133, 0.4); }
 }
 
 .action-btn {
@@ -131,49 +114,34 @@ body.dark #modalContent {
     transition: all 0.2s ease;
 }
 
-.action-btn:active {
-    transform: scale(0.95);
-}
+.action-btn:active { transform: scale(0.95); }
 
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
-}
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
 
-#calendarDays div {
-    transition: all 0.2s ease;
-}
+#calendarDays div { transition: all 0.2s ease; }
+#calMonthYear { min-width: 120px; text-align: center; }
 
-#calMonthYear {
-    min-width: 120px;
-    text-align: center;
-}
-
-/* FIX MODAL SCROLLING */
+/* --- FIX MODAL SCROLLING & GAP --- */
 #modalContent {
-    max-height: 85vh; /* Never taller than 85% of screen */
+    /* CHANGED: 85vh -> 96vh (Almost top of screen) */
+    max-height: 96vh;
     display: flex;
     flex-direction: column;
+    /* Dark mode background fix */
+    background: white;
+    border-top: 1px solid transparent;
+}
+body.dark #modalContent {
+    background: #1f1a1b;
+    border-top: 1px solid #3d2e31;
 }
 
-/* Make the inner content scroll, but keep the handle fixed if possible */
-#modalContent > div {
-    /* This targets the inner divs if you structured it that way,
-       but for your current structure, let's just apply scroll to the whole box: */
-}
-
-/* Better approach for your current structure: */
-#modalContent {
-    overflow-y: auto; /* Allow the whole white box to scroll */
-    padding-bottom: 40px; /* Space for the close button */
+#modalContent > div.overflow-y-auto {
+    overflow-y: auto;
+    padding-bottom: 40px;
 }

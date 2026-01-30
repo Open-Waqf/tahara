@@ -39,18 +39,16 @@
         const monthName = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
         monthLabel.innerText = monthName;
 
-        // B. Weekdays (Fixed Visibility: Larger & Darker)
+        // B. Weekdays
         const daysAr = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
         const daysEn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
         const days = App.currentLang === 'ar' ? daysAr : daysEn;
         if (weekHeader) {
-            // Changed: text-[9px] -> text-[11px], slate-300 -> slate-500/slate-400
             weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join('');
         }
 
-        // C. Inject Legend (Fixed Visibility)
+        // C. Legend
         if (legendContainer) {
-            // Changed: text-slate-400 -> text-slate-500/slate-300
             legendContainer.innerHTML = `
                 <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div>
                 <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_change", "Change")}</span></div>
@@ -65,7 +63,6 @@
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const now = new Date();
 
-        // Padding
         for (let i = 0; i < firstDay; i++) {
             grid.innerHTML += `<div></div>`;
         }
@@ -80,20 +77,16 @@
 
             const endState = getStateForDate(currentDayDate);
 
-            // E. COLORS (Fixed Visibility)
             let bgClass = "";
             let textClass = "";
 
             if (hasTransition) {
-                // Purple
                 bgClass = "bg-purple-100 dark:bg-purple-900/60";
                 textClass = "text-purple-700 dark:text-purple-100 font-bold";
             } else if (endState === 'hayd') {
-                // Rose
                 bgClass = "bg-rose-100 dark:bg-rose-500/30";
                 textClass = "text-rose-600 dark:text-rose-100 font-bold";
             } else {
-                // Purity (Amber) - Made Darker in Light Mode for readability
                 bgClass = "bg-amber-50 dark:bg-amber-900/20";
                 textClass = "text-amber-700 dark:text-amber-200 font-bold";
             }
@@ -101,7 +94,6 @@
             const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
             const borderClass = isToday ? "ring-2 ring-amber-500 font-black z-10 scale-110" : "";
 
-            // Changed: text-[10px] -> text-[12px] for better readability
             grid.innerHTML += `
                 <div class="h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">
                     ${day}
@@ -139,30 +131,44 @@
         }
     }
 
+    // HELPER: Format Date + Time (e.g., "Jan 30, 2:30 PM")
+    function formatDateTime(isoString) {
+        const d = new Date(isoString);
+        return d.toLocaleString(App.currentLang, {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
     function renderHistory() {
         const list = el("history-list");
         const drawer = el("history-drawer");
-        if (App.history.length === 0) {
-            drawer.style.opacity = "0";
-            return;
-        }
 
+        // FIX: Always show drawer so Restore button is visible even if empty
         drawer.classList.remove("opacity-0", "translate-y-10");
         drawer.style.opacity = "1";
 
-        let html = App.history.slice(0, 5).map(entry => {
-            const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-400';
-            const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
-            // Fixed: slate-300 -> slate-500
-            const textCol = entry.status === 'hayd' ? 'dark:text-rose-200' : 'dark:text-amber-100';
+        let html = "";
 
-            return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in">
-                <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span>
-                <span class="${textCol} font-bold text-slate-600">${label}</span></div>
-                <span class="text-slate-500 dark:text-slate-400 font-medium">${new Date(entry.time).toLocaleDateString(App.currentLang)}</span>
-            </div>`;
-        }).join('');
+        if (App.history.length === 0) {
+            html = `<div class="text-center text-slate-400 text-xs py-4 italic">No history yet</div>`;
+        } else {
+            html = App.history.slice(0, 5).map(entry => {
+                const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-400';
+                const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
+                const textCol = entry.status === 'hayd' ? 'dark:text-rose-200' : 'dark:text-amber-100';
 
+                return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in">
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span>
+                    <span class="${textCol} font-bold text-slate-600">${label}</span></div>
+                    <span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span>
+                </div>`;
+            }).join('');
+        }
+
+        // Always show Action Buttons
         html += `<div class="flex gap-2 mt-4">
             <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">
                 ${S("full_insights", "Full Insights")}
@@ -176,12 +182,14 @@
         </div>`;
 
         list.innerHTML = html;
+
+        // Re-attach listeners
         setTimeout(() => {
-            el("viewFullBtn").onclick = () => window.openInsights();
-            el("undoBtn").onclick = deleteLastEntry;
-            el("backupBtn").onclick = exportData;
-            el("restoreBtn").onclick = importData;
-            el("clearDataBtn").onclick = clearAllData;
+            if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
+            if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
+            if (el("backupBtn")) el("backupBtn").onclick = exportData;
+            if (el("restoreBtn")) el("restoreBtn").onclick = importData;
+            if (el("clearDataBtn")) el("clearDataBtn").onclick = clearAllData;
         }, 0);
     }
 
@@ -248,6 +256,7 @@
     }
 
     function deleteLastEntry() {
+        if (App.history.length === 0) return; // Fix for undo on empty list
         if (confirm(S("delete_confirm", "Delete last entry?"))) {
             App.history.shift();
             if (App.history.length > 0) {
@@ -286,7 +295,11 @@
     }
 
     function calculateAverages() {
-        if (App.history.length < 2) return;
+        if (App.history.length < 2) {
+            if (el("avgCycleText")) el("avgCycleText").innerText = "--";
+            if (el("avgPurityText")) el("avgPurityText").innerText = "--";
+            return;
+        }
         let hTotal = 0, hCount = 0, pTotal = 0, pCount = 0;
         for (let i = 0; i < App.history.length - 1; i++) {
             const duration = new Date(App.history[i].time) - new Date(App.history[i + 1].time);
@@ -298,7 +311,12 @@
                 pCount++;
             }
         }
-        const toDays = (ms, count) => count > 0 ? Math.round(ms / 86400000 / count) + 'd' : '--';
+
+        // FIX: Get the translated unit ('d' or 'ي')
+        const unit = S("unit_days", "d");
+
+        const toDays = (ms, count) => count > 0 ? Math.round(ms / 86400000 / count) + unit : '--';
+
         if (el("avgCycleText")) el("avgCycleText").innerText = toDays(hTotal, hCount);
         if (el("avgPurityText")) el("avgPurityText").innerText = toDays(pTotal, pCount);
     }
@@ -354,8 +372,10 @@
 
     window.openInsights = () => {
         el("insightsModal").classList.remove("hidden");
+        // FIX: Scroll to top of modal content
         const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
         if (scrollContainer) scrollContainer.scrollTop = 0;
+
         setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
         calculateAverages();
         renderCalendar();
@@ -371,12 +391,12 @@
         const fullList = el("fullHistoryList");
         if (!fullList) return;
         fullList.innerHTML = App.history.map(entry => {
-            const date = new Date(entry.time);
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
+            // NEW: Show Date + Time
             return `<div class="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex justify-between items-center">
                 <span class="text-sm font-bold ${color}">${label}</span>
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${date.toLocaleString(App.currentLang)}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
             </div>`;
         }).join('');
     }
