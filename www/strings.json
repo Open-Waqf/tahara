@@ -32,7 +32,18 @@
     "fasting_subtitle": "Track your Missed Fasts (Qada)",
     "days_remaining": "Days Remaining",
     "missed_fast": "Missed",
-    "made_up_fast": "Made Up"
+    "made_up_fast": "Made Up",
+    "msg_purity_morning": "It is Morning. Ensure you have prayed Fajr.",
+    "msg_purity_afternoon": "It is Afternoon. If you became pure now, perform Ghusl and pray Zuhr and Asr.",
+    "msg_purity_evening": "It is Evening. Ensure you pray Maghrib and Isha before sleep.",
+    "msg_hayd_early": "Prayer and Fasting are paused. Rest is an act of worship.",
+    "msg_hayd_warning_hanafi": "Day 10+. Exceeding 10 days is considered Istihadah in Hanafi fiqh. You may need to resume prayer.",
+    "msg_hayd_warning_shafi": "Day 15+. Exceeding 15 days is considered Istihadah in Shafi'i fiqh. You must resume prayer.",
+    "msg_hayd_generic": "Prayer paused. Taking care of your health is worship.",
+    "msg_purity_day0_morning": "You just became pure. Perform Ghusl and pray Fajr.",
+    "msg_purity_day0_afternoon": "You just became pure. Perform Ghusl. You should pray Zuhr and Asr.",
+    "msg_purity_day0_evening": "You just became pure. Perform Ghusl. You should pray Maghrib and Isha.",
+    "msg_purity_general": "You are in a state of purity. Keep your heart attached to Salah."
   },
   "ar": {
     "app_name": "طهارة",
@@ -62,6 +73,17 @@
     "fasting_subtitle": "متابعة الأيام الفائتة",
     "days_remaining": "الأيام المتبقية",
     "missed_fast": "فائت (حيض)",
-    "made_up_fast": "تم قضاؤه"
+    "made_up_fast": "تم قضاؤه",
+    "msg_purity_morning": "الوقت صباحاً. تأكدي من صلاة الفجر.",
+    "msg_purity_afternoon": "الوقت ظهراً/عصراً. إذا تطهرتِ الآن، عليكِ الاغتسال وصلاة الظهر والعصر.",
+    "msg_purity_evening": "الوقت مساءً. تأكدي من صلاة المغرب والعشاء قبل النوم.",
+    "msg_hayd_early": "الصلاة والصيام متوقفان. الراحة عبادة في حالتك.",
+    "msg_hayd_warning_hanafi": "تجاوزتِ 10 أيام. عند الحنفية، ما زاد عن 10 أيام يُعتبر استحاضة وتجب الصلاة.",
+    "msg_hayd_warning_shafi": "تجاوزتِ 15 يوماً. عند الشافعية، ما زاد عن 15 يوماً يُعتبر استحاضة وتجب الصلاة.",
+    "msg_hayd_generic": "الصلاة متوقفة. العناية بصحتك تؤجرين عليها.",
+    "msg_purity_day0_morning": "طهرتِ للتو. اغتسلي وصلي الفجر.",
+    "msg_purity_day0_afternoon": "طهرتِ للتو. اغتسلي، وعليكِ صلاة الظهر والعصر.",
+    "msg_purity_day0_evening": "طهرتِ للتو. اغتسلي، وعليكِ صلاة المغرب والعشاء.",
+    "msg_purity_general": "أنتِ في حالة طهارة. تقبل الله صلواتك."
   }
 }

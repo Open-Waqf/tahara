@@ -7,7 +7,6 @@
         status: localStorage.getItem("tahara_status") || "purity",
         lastChanged: localStorage.getItem("tahara_last_changed") || new Date().toISOString(),
         history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
-        // NEW: Fasting State
         fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}')
     };
 
@@ -18,7 +17,52 @@
         return App.uiStrings[key] || fallback || "";
     }
 
-    // 2. FASTING LOGIC (New)
+    updateContextMessage// 2. CONTEXT LOGIC (Smart Day 0 vs Day 1+)
+    function updateContextMessage() {
+        const descText = document.querySelector("[data-i18n='status_desc']");
+        if (!descText) return;
+
+        const now = new Date();
+        const diffMs = now - new Date(App.lastChanged);
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hour = now.getHours();
+
+        if (App.status === "purity") {
+            // IF DAY 0: Give specific "What to Pray" advice
+            if (days === 0) {
+                if (hour >= 4 && hour < 12) {
+                    descText.innerText = S("msg_purity_day0_morning", "You just became pure. Perform Ghusl and pray Fajr.");
+                } else if (hour >= 12 && hour < 17) {
+                    descText.innerText = S("msg_purity_day0_afternoon", "You just became pure. Perform Ghusl. You should pray Zuhr and Asr.");
+                } else {
+                    descText.innerText = S("msg_purity_day0_evening", "You just became pure. Perform Ghusl. You should pray Maghrib and Isha.");
+                }
+                descText.classList.add("text-amber-600", "font-bold"); // Highlight advice
+            }
+            // IF DAY 1+: General encouragement
+            else {
+                descText.innerText = S("msg_purity_general", "You are in a state of purity. Keep your heart attached to Salah.");
+                descText.classList.remove("text-amber-600", "font-bold");
+            }
+        } else {
+            // HAYD LOGIC (Same as before)
+            if (days >= 15) {
+                descText.innerText = S("msg_hayd_warning_shafi", "Day 15+. Exceeding 15 days is considered Istihadah. You must resume prayer.");
+                descText.classList.add("text-rose-600", "font-bold");
+            } else if (days >= 10) {
+                descText.innerText = S("msg_hayd_warning_hanafi", "Day 10+. Exceeding 10 days is considered Istihadah in Hanafi fiqh.");
+                descText.classList.add("text-rose-600", "font-bold");
+            } else if (days <= 3) {
+                descText.innerText = S("msg_hayd_early", "Prayer and Fasting are paused. Rest is an act of worship.");
+                descText.classList.remove("text-rose-600", "font-bold");
+            } else {
+                descText.innerText = S("msg_hayd_generic", "Prayer paused. Taking care of your health is worship.");
+                descText.classList.remove("text-rose-600", "font-bold");
+            }
+        }
+    }
+
+    // 3. FASTING LOGIC
     function saveFasting() {
         localStorage.setItem("tahara_fasting", JSON.stringify(App.fasting));
         updateFastingUI();
@@ -34,7 +78,6 @@
 
     window.updatePaid = (delta) => {
         const newVal = App.fasting.paid + delta;
-        // Cannot pay more than missed (optional rule, but logical)
         if (newVal >= 0 && newVal <= App.fasting.missed) {
             App.fasting.paid = newVal;
             saveFasting();
@@ -43,17 +86,12 @@
 
     function updateFastingUI() {
         const remaining = App.fasting.missed - App.fasting.paid;
-
-        // Modal Values
         if (el("debtDisplay")) el("debtDisplay").innerText = remaining;
         if (el("totalMissed")) el("totalMissed").innerText = App.fasting.missed;
         if (el("totalPaid")) el("totalPaid").innerText = App.fasting.paid;
-
-        // Navbar Dot Logic (Show red dot if debt > 0)
         const dot = el("debtDot");
         if (dot) {
-            if (remaining > 0) dot.classList.remove("hidden");
-            else dot.classList.add("hidden");
+            (remaining > 0) ? dot.classList.remove("hidden") : dot.classList.add("hidden");
         }
     }
 
@@ -61,7 +99,6 @@
         const modal = el("fastingModal");
         const content = el("fastingContent");
         modal.classList.remove("hidden");
-        // Simple fade-in pop animation
         setTimeout(() => {
             content.classList.remove("scale-95", "opacity-0");
             content.classList.add("scale-100", "opacity-100");
@@ -77,7 +114,7 @@
         setTimeout(() => modal.classList.add("hidden"), 300);
     };
 
-    // 2. CALENDAR ENGINE
+    // 4. CALENDAR ENGINE
     window.changeMonth = (delta) => {
         calDate.setMonth(calDate.getMonth() + delta);
         renderCalendar();
@@ -93,8 +130,7 @@
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         grid.innerHTML = "";
 
-        const monthName = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
-        monthLabel.innerText = monthName;
+        monthLabel.innerText = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
 
         const daysAr = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
         const daysEn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -151,12 +187,13 @@
         return entry ? entry.status : 'purity';
     }
 
-    // 3. UI UPDATER
+    // 5. UI UPDATER
     function updateStatusUI() {
         const orb = document.querySelector(".status-orb");
         const statusText = el("current-state-text");
         const actionBtn = el("mainActionBtn");
-        const descText = document.querySelector("[data-i18n='status_desc']");
+
+        updateContextMessage();
 
         if (App.status === "purity") {
             statusText.innerText = S("status_purity", "Purity");
@@ -164,16 +201,14 @@
             actionBtn.innerText = S("btn_start_flow", "Mark Flow Started");
             actionBtn.style.background = "#fb7185";
             orb.classList.remove("status-hayd-pulse");
-            if (descText) descText.innerText = S("status_desc", "You are eligible for Prayer.");
         } else {
             statusText.innerText = S("status_hayd", "Hayd");
             statusText.className = "text-3xl font-black text-rose-500 dark:text-rose-300 transition-colors";
             actionBtn.innerText = S("btn_end_flow", "Mark Purity Achieved");
             actionBtn.style.background = "#10b981";
             orb.classList.add("status-hayd-pulse");
-            if (descText) descText.innerText = S("status_hayd_desc", "Prayer paused.");
         }
-        updateFastingUI(); // Update dot on load
+        updateFastingUI();
     }
 
     function formatDateTime(isoString) {
@@ -241,12 +276,11 @@
     }
 
     function exportData() {
-        // Updated Export to include Fasting Data
         const data = {
             tahara_status: App.status,
             tahara_last_changed: App.lastChanged,
             tahara_history: App.history,
-            tahara_fasting: App.fasting, // NEW
+            tahara_fasting: App.fasting,
             export_date: new Date().toISOString()
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
@@ -274,10 +308,7 @@
                         App.status = data.tahara_status;
                         App.lastChanged = data.tahara_last_changed;
                         App.history = data.tahara_history;
-                        // Import Fasting Data if exists, else reset
                         App.fasting = data.tahara_fasting || {missed: 0, paid: 0};
-
-                        // Save both
                         saveState();
                         saveFasting();
                         location.reload();
@@ -313,7 +344,7 @@
         if (confirm(S("clear_confirm", "Clear all?"))) {
             localStorage.clear();
             App.history = [];
-            App.fasting = {missed: 0, paid: 0}; // Reset fasting too
+            App.fasting = {missed: 0, paid: 0};
             App.status = "purity";
             App.lastChanged = new Date().toISOString();
             updateStatusUI();
@@ -329,6 +360,9 @@
         const l = App.currentLang === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['d', 'h', 'm', 's'];
         const elTimer = el("time-elapsed");
         if (elTimer) elTimer.innerText = `${d}${l[0]} ${h}${l[1]} ${m}${l[2]} ${s}${l[3]}`;
+
+        // NEW: Check context message every second too (in case hour changes)
+        updateContextMessage();
     }
 
     function calculateAverages() {
@@ -397,7 +431,6 @@
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
         };
-        // NEW: Fasting Listener
         if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
 
         if (langSel) langSel.onchange = (e) => {
