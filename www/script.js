@@ -559,6 +559,80 @@
         }
     }
 
+    let deferredPrompt; // For Android
+
+    // 1. Detect Install Eligibility
+    function checkInstall() {
+        // If already installed (standalone), don't show anything
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            return;
+        }
+
+        // If user dismissed it recently (e.g., last 7 days), don't show
+        const lastDismiss = localStorage.getItem("tahara_install_dismissed");
+        if (lastDismiss && (new Date() - new Date(lastDismiss)) < (7 * 24 * 60 * 60 * 1000)) {
+            return;
+        }
+
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+        if (isIOS) {
+            showInstallBanner("ios");
+        }
+    }
+
+    // 2. Android Prompt Listener
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent Chrome 67 and earlier from automatically showing the prompt
+        e.preventDefault();
+        // Stash the event so it can be triggered later.
+        deferredPrompt = e;
+        // Show our UI
+        showInstallBanner("android");
+    });
+
+    function showInstallBanner(platform) {
+        const banner = el("installBanner");
+        const iosText = el("iosInstallText");
+        const androidBtn = el("androidInstallBtn");
+
+        if (!banner) return;
+
+        if (platform === "ios") {
+            iosText.classList.remove("hidden");
+            // Inject text with icons for iOS
+            const rawText = S("install_ios_desc", "Tap Share and Add to Home Screen");
+            // Replace placeholders with actual unicode icons
+            iosText.innerHTML = rawText
+                .replace("%share_icon%", '<span class="text-blue-500 text-base">⎋</span>') // iOS Share Icon approx
+                .replace("%plus_icon%", '<span class="text-slate-700 dark:text-slate-300 font-bold text-base">⊞</span>');
+        } else {
+            androidBtn.classList.remove("hidden");
+            androidBtn.onclick = async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const {outcome} = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        dismissInstall();
+                    }
+                    deferredPrompt = null;
+                }
+            };
+        }
+
+        banner.classList.remove("hidden");
+        // Slide Up Animation
+        setTimeout(() => banner.classList.remove("translate-y-20"), 100);
+    }
+
+    window.dismissInstall = () => {
+        const banner = el("installBanner");
+        banner.classList.add("translate-y-20");
+        setTimeout(() => banner.classList.add("hidden"), 500);
+        // Remember dismissal for 7 days
+        localStorage.setItem("tahara_install_dismissed", new Date().toISOString());
+    };
+
     async function init() {
         try {
             const res = await fetch("strings.json");
@@ -591,6 +665,8 @@
             localStorage.setItem("tahara_userLang", e.target.value);
             location.reload();
         };
+
+        setTimeout(checkInstall, 3000);
     }
 
     window.openInsights = () => {

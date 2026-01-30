@@ -44,7 +44,11 @@
     "msg_purity_day0_afternoon": "You just became pure. Perform Ghusl. You should pray Zuhr and Asr.",
     "msg_purity_day0_evening": "You just became pure. Perform Ghusl. You should pray Maghrib and Isha.",
     "msg_purity_general": "You are in a state of purity. Keep your heart attached to Salah.",
-    "next_period": "Next Expected"
+    "next_period": "Next Expected",
+    "install_title": "Install App",
+    "install_ios_desc": "Tap the Share button %share_icon% and select 'Add to Home Screen' %plus_icon%.",
+    "install_android_btn": "Install Tahara",
+    "btn_dismiss": "Maybe Later"
   },
   "ar": {
     "app_name": "طهارة",
@@ -86,6 +90,10 @@
     "msg_purity_day0_afternoon": "طهرتِ للتو. اغتسلي، وعليكِ صلاة الظهر والعصر.",
     "msg_purity_day0_evening": "طهرتِ للتو. اغتسلي، وعليكِ صلاة المغرب والعشاء.",
     "msg_purity_general": "أنتِ في حالة طهارة. تقبل الله صلواتك.",
-    "next_period": "الموعد المتوقع"
+    "next_period": "الموعد المتوقع",
+    "install_title": "تثبيت التطبيق",
+    "install_ios_desc": "اضغطي على زر المشاركة %share_icon% واختاري 'إضافة إلى الشاشة الرئيسية' %plus_icon%.",
+    "install_android_btn": "تثبيت طهارة",
+    "btn_dismiss": "لاحقاً"
   }
 }
