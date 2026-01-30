@@ -12,7 +12,9 @@
     const el = (id) => document.getElementById(id);
     let calDate = new Date();
 
-    function S(key, fallback) { return App.uiStrings[key] || fallback || ""; }
+    function S(key, fallback) {
+        return App.uiStrings[key] || fallback || "";
+    }
 
     // 2. CALENDAR ENGINE
     window.changeMonth = (delta) => {
@@ -24,7 +26,7 @@
         const grid = el("calendarDays");
         const monthLabel = el("calMonthYear");
         const weekHeader = el("calendarWeekdays");
-        const legendContainer = el("calendarLegend"); // New target for Legend
+        const legendContainer = el("calendarLegend");
 
         if (!grid || !monthLabel) return;
 
@@ -34,23 +36,25 @@
         grid.innerHTML = "";
 
         // A. Header: Month Name
-        const monthName = calDate.toLocaleString(App.currentLang, { month: 'long', year: 'numeric' });
+        const monthName = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
         monthLabel.innerText = monthName;
 
-        // B. Weekdays
+        // B. Weekdays (Fixed Visibility: Larger & Darker)
         const daysAr = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
         const daysEn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
         const days = App.currentLang === 'ar' ? daysAr : daysEn;
         if (weekHeader) {
-            weekHeader.innerHTML = days.map(d => `<span class="text-[9px] text-slate-300 font-bold">${d}</span>`).join('');
+            // Changed: text-[9px] -> text-[11px], slate-300 -> slate-500/slate-400
+            weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join('');
         }
 
-        // C. INJECT LEGEND (New)
+        // C. Inject Legend (Fixed Visibility)
         if (legendContainer) {
+            // Changed: text-slate-400 -> text-slate-500/slate-300
             legendContainer.innerHTML = `
-                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-800"></span> <span class="text-slate-400">${S("status_purity", "Purity")}</span></div>
-                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-800"></span> <span class="text-slate-400">${S("status_change", "Change")}</span></div>
-                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-200 dark:bg-rose-800"></span> <span class="text-slate-400">${S("status_hayd", "Hayd")}</span></div>
+                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div>
+                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_change", "Change")}</span></div>
+                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-200 dark:bg-rose-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_hayd", "Hayd")}</span></div>
             `;
         }
 
@@ -69,39 +73,37 @@
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day, 23, 59, 59);
 
-            // LOGIC: Did any change happen TODAY?
             const hasTransition = App.history.some(e => {
                 const d = new Date(e.time);
                 return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
             });
 
-            // LOGIC: What was the state at the END of the day?
             const endState = getStateForDate(currentDayDate);
 
-            // E. 3-COLOR SYSTEM
+            // E. COLORS (Fixed Visibility)
             let bgClass = "";
             let textClass = "";
 
             if (hasTransition) {
-                // Color 3: TRANSITION (Purple/Lavender)
-                bgClass = "bg-purple-100 dark:bg-purple-900/40";
-                textClass = "text-purple-600 dark:text-purple-200 font-bold";
+                // Purple
+                bgClass = "bg-purple-100 dark:bg-purple-900/60";
+                textClass = "text-purple-700 dark:text-purple-100 font-bold";
             } else if (endState === 'hayd') {
-                // Color 2: HAYD (Rose)
-                bgClass = "bg-rose-100 dark:bg-rose-500/20";
-                textClass = "text-rose-500 dark:text-rose-200 font-bold";
+                // Rose
+                bgClass = "bg-rose-100 dark:bg-rose-500/30";
+                textClass = "text-rose-600 dark:text-rose-100 font-bold";
             } else {
-                // Color 1: PURITY (Amber)
-                bgClass = "bg-amber-50 dark:bg-amber-900/10";
-                textClass = "text-amber-600 dark:text-amber-200 font-medium";
+                // Purity (Amber) - Made Darker in Light Mode for readability
+                bgClass = "bg-amber-50 dark:bg-amber-900/20";
+                textClass = "text-amber-700 dark:text-amber-200 font-bold";
             }
 
-            // Highlight "Today"
             const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-            const borderClass = isToday ? "ring-2 ring-amber-400 font-black z-10 scale-110" : "";
+            const borderClass = isToday ? "ring-2 ring-amber-500 font-black z-10 scale-110" : "";
 
+            // Changed: text-[10px] -> text-[12px] for better readability
             grid.innerHTML += `
-                <div class="h-8 w-8 flex items-center justify-center text-[10px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">
+                <div class="h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">
                     ${day}
                 </div>
             `;
@@ -113,10 +115,7 @@
         return entry ? entry.status : 'purity';
     }
 
-    // ... (Keep existing updateStatusUI, renderHistory, logic functions exactly as they were) ...
-    // Copy/paste the rest of the functions (updateStatusUI, renderHistory, saveState, export/import etc) from the previous step here.
-
-    // UI UPDATER
+    // 3. UI UPDATER
     function updateStatusUI() {
         const orb = document.querySelector(".status-orb");
         const statusText = el("current-state-text");
@@ -143,33 +142,37 @@
     function renderHistory() {
         const list = el("history-list");
         const drawer = el("history-drawer");
-        if (App.history.length === 0) { drawer.style.opacity = "0"; return; }
+        if (App.history.length === 0) {
+            drawer.style.opacity = "0";
+            return;
+        }
 
         drawer.classList.remove("opacity-0", "translate-y-10");
         drawer.style.opacity = "1";
 
         let html = App.history.slice(0, 5).map(entry => {
-            const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-300';
+            const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-400';
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
+            // Fixed: slate-300 -> slate-500
             const textCol = entry.status === 'hayd' ? 'dark:text-rose-200' : 'dark:text-amber-100';
 
-            return `<div class="flex justify-between text-[10px] pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in">
-                <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full ${dot}"></span>
-                <span class="${textCol} font-medium">${label}</span></div>
-                <span class="text-slate-300 dark:text-slate-500">${new Date(entry.time).toLocaleDateString(App.currentLang)}</span>
+            return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in">
+                <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span>
+                <span class="${textCol} font-bold text-slate-600">${label}</span></div>
+                <span class="text-slate-500 dark:text-slate-400 font-medium">${new Date(entry.time).toLocaleDateString(App.currentLang)}</span>
             </div>`;
         }).join('');
 
         html += `<div class="flex gap-2 mt-4">
-            <button id="viewFullBtn" class="flex-1 py-2 text-[10px] text-rose-500 dark:text-rose-200 font-bold uppercase border border-rose-100 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">
+            <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">
                 ${S("full_insights", "Full Insights")}
             </button>
-            <button id="undoBtn" class="px-4 py-2 text-[10px] text-slate-400 border border-slate-100 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button>
+            <button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button>
         </div>
         <div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4">
-            <button id="backupBtn" class="text-[9px] text-slate-400 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button>
-            <button id="restoreBtn" class="text-[9px] text-slate-400 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button>
-            <button id="clearDataBtn" class="text-[9px] text-rose-300 hover:text-rose-500 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button>
+            <button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button>
+            <button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button>
+            <button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button>
         </div>`;
 
         list.innerHTML = html;
@@ -201,7 +204,12 @@
     }
 
     function exportData() {
-        const data = { tahara_status: App.status, tahara_last_changed: App.lastChanged, tahara_history: App.history, export_date: new Date().toISOString() };
+        const data = {
+            tahara_status: App.status,
+            tahara_last_changed: App.lastChanged,
+            tahara_history: App.history,
+            export_date: new Date().toISOString()
+        };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -223,15 +231,16 @@
                 try {
                     const data = JSON.parse(event.target.result);
                     if (!data.tahara_history) throw new Error("Invalid file");
-                    if(confirm(S("import_confirm", "Overwrite current data?"))) {
+                    if (confirm(S("import_confirm", "Overwrite current data?"))) {
                         App.status = data.tahara_status;
                         App.lastChanged = data.tahara_last_changed;
                         App.history = data.tahara_history;
                         saveState();
-                        // Import DOES need a reload to ensure all state propagates cleanly
                         location.reload();
                     }
-                } catch (err) { alert(S("import_error", "Error: Invalid backup file.")); }
+                } catch (err) {
+                    alert(S("import_error", "Error: Invalid backup file."));
+                }
             };
             reader.readAsText(file);
         };
@@ -257,13 +266,10 @@
 
     function clearAllData() {
         if (confirm(S("clear_confirm", "Clear all?"))) {
-            localStorage.clear(); // Careful: clears domain data
-            // Reset App State in Memory
+            localStorage.clear();
             App.history = [];
             App.status = "purity";
             App.lastChanged = new Date().toISOString();
-
-            // Re-Render without reload
             updateStatusUI();
             renderHistory();
             updateLiveCounter();
@@ -272,7 +278,8 @@
 
     function updateLiveCounter() {
         const diff = Math.max(0, new Date() - new Date(App.lastChanged));
-        const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
+        const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000),
+            m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
         const l = App.currentLang === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['d', 'h', 'm', 's'];
         const elTimer = el("time-elapsed");
         if (elTimer) elTimer.innerText = `${d}${l[0]} ${h}${l[1]} ${m}${l[2]} ${s}${l[3]}`;
@@ -283,8 +290,13 @@
         let hTotal = 0, hCount = 0, pTotal = 0, pCount = 0;
         for (let i = 0; i < App.history.length - 1; i++) {
             const duration = new Date(App.history[i].time) - new Date(App.history[i + 1].time);
-            if (App.history[i].status === "purity") { hTotal += duration; hCount++; }
-            else { pTotal += duration; pCount++; }
+            if (App.history[i].status === "purity") {
+                hTotal += duration;
+                hCount++;
+            } else {
+                pTotal += duration;
+                pCount++;
+            }
         }
         const toDays = (ms, count) => count > 0 ? Math.round(ms / 86400000 / count) + 'd' : '--';
         if (el("avgCycleText")) el("avgCycleText").innerText = toDays(hTotal, hCount);
@@ -299,7 +311,8 @@
             const ver = match ? match[1].replace("tahara-", "") : "Dev";
             const vEl = el("appVersion");
             if (vEl) vEl.innerText = ver;
-        } catch (e) {}
+        } catch (e) {
+        }
     }
 
     async function init() {
@@ -307,7 +320,8 @@
             const res = await fetch("strings.json");
             const raw = await res.json();
             App.uiStrings = raw[App.currentLang] || raw['en'];
-        } catch (e) {}
+        } catch (e) {
+        }
 
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
         document.documentElement.lang = App.currentLang;
@@ -340,6 +354,8 @@
 
     window.openInsights = () => {
         el("insightsModal").classList.remove("hidden");
+        const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
+        if (scrollContainer) scrollContainer.scrollTop = 0;
         setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
         calculateAverages();
         renderCalendar();
@@ -357,10 +373,10 @@
         fullList.innerHTML = App.history.map(entry => {
             const date = new Date(entry.time);
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
-            const color = entry.status === 'hayd' ? 'text-rose-500 dark:text-rose-200' : 'text-amber-600 dark:text-amber-100';
+            const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
             return `<div class="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex justify-between items-center">
                 <span class="text-sm font-bold ${color}">${label}</span>
-                <span class="text-[10px] text-slate-400">${date.toLocaleString(App.currentLang)}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${date.toLocaleString(App.currentLang)}</span>
             </div>`;
         }).join('');
     }
