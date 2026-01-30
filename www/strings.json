@@ -48,7 +48,9 @@
     "install_title": "Install App",
     "install_ios_desc": "Tap the Share button %share_icon% and select 'Add to Home Screen' %plus_icon%.",
     "install_android_btn": "Install Tahara",
-    "btn_dismiss": "Maybe Later"
+    "btn_dismiss": "Maybe Later",
+    "no_history": "No history yet",
+    "msg_welcome": "Welcome to Tahara. Tap below to log your first change."
   },
   "ar": {
     "app_name": "طهارة",
@@ -94,6 +96,8 @@
     "install_title": "تثبيت التطبيق",
     "install_ios_desc": "اضغطي على زر المشاركة %share_icon% واختاري 'إضافة إلى الشاشة الرئيسية' %plus_icon%.",
     "install_android_btn": "تثبيت طهارة",
-    "btn_dismiss": "لاحقاً"
+    "btn_dismiss": "لاحقاً",
+    "no_history": "لا يوجد سجل بعد",
+    "msg_welcome": "مرحباً بك في طهارة. اضغطي أدناه لبدء التسجيل."
   }
 }

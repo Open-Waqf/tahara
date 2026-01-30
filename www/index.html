@@ -44,7 +44,7 @@
 </head>
 
 <body class="transition-colors duration-300">
-<nav class="p-6 flex justify-between items-center">
+<nav class="px-6 pb-6 pt-[calc(1.5rem+env(safe-area-inset-top))] flex justify-between items-center">
     <h1 class="text-2xl font-serif italic text-rose-400">طهارة</h1>
     <div class="flex items-center gap-4">
         <select id="langSelect"
@@ -81,7 +81,7 @@
     </button>
 
     <div id="history-drawer"
-         class="w-full max-w-xs mt-12 overflow-hidden transition-all duration-500 opacity-0 transform translate-y-10">
+         class="w-full max-w-xs mt-12 overflow-hidden transition-all duration-500 opacity-0 transform translate-y-10 pb-24">
         <h3 class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-4 font-bold" data-i18n="recent_history">
             Recent Activity</h3>
         <div id="history-list" class="space-y-3"></div>
@@ -92,14 +92,14 @@
 <div id="insightsModal" class="fixed inset-0 z-[10000] hidden flex items-end">
     <div class="absolute inset-0 bg-rose-900/30 backdrop-blur-sm" onclick="closeInsights()"></div>
 
-    <div class="relative w-full bg-white dark:bg-[#1a1617] rounded-t-[2.5rem] shadow-2xl transition-transform duration-500 transform translate-y-full flex flex-col max-h-[98vh]"
+    <div class="relative w-full bg-white dark:bg-[#1a1617] rounded-t-[2.5rem] shadow-2xl transition-transform duration-500 transform translate-y-full flex flex-col max-h-[90vh]"
          id="modalContent">
 
         <div class="w-full pt-4 pb-2 shrink-0 flex justify-center cursor-pointer" onclick="closeInsights()">
             <div class="w-12 h-1.5 bg-rose-100 dark:bg-rose-900/40 rounded-full"></div>
         </div>
 
-        <div class="overflow-y-auto px-6 pb-8 pt-2">
+        <div class="overflow-y-auto px-6 pb-8 pt-2 pb-[calc(2rem+env(safe-area-inset-bottom))]">
             <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="full_insights">Full
                 Insights</h2>
 

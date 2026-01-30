@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tahara-v0.23';
+const CACHE_NAME = 'tahara-v0.24';
 const ASSETS = [
     "./",
     "./index.html",
