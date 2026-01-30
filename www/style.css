@@ -149,3 +149,31 @@ body.dark #modalContent {
 .animate-fade-in {
     animation: fadeIn 0.4s ease-out forwards;
 }
+
+#calendarDays div {
+    transition: all 0.2s ease;
+}
+
+#calMonthYear {
+    min-width: 120px;
+    text-align: center;
+}
+
+/* FIX MODAL SCROLLING */
+#modalContent {
+    max-height: 85vh; /* Never taller than 85% of screen */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Make the inner content scroll, but keep the handle fixed if possible */
+#modalContent > div {
+    /* This targets the inner divs if you structured it that way,
+       but for your current structure, let's just apply scroll to the whole box: */
+}
+
+/* Better approach for your current structure: */
+#modalContent {
+    overflow-y: auto; /* Allow the whole white box to scroll */
+    padding-bottom: 40px; /* Space for the close button */
+}

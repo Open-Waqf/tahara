@@ -24,7 +24,8 @@
     "btn_restore": "Restore",
     "import_confirm": "Overwrite current data with this backup file?",
     "import_success": "Data restored successfully.",
-    "import_error": "Error: Invalid backup file."
+    "import_error": "Error: Invalid backup file.",
+    "status_change": "Change"
   },
   "ar": {
     "app_name": "طهارة",
@@ -46,6 +47,7 @@
     "btn_restore": "استعادة",
     "import_confirm": "هل تريدين استبدال البيانات الحالية بملف النسخ الاحتياطي؟",
     "import_success": "تمت استعادة البيانات بنجاح.",
-    "import_error": "خطأ: ملف النسخ الاحتياطي غير صالح."
+    "import_error": "خطأ: ملف النسخ الاحتياطي غير صالح.",
+    "status_change": "تغيير"
   }
 }
