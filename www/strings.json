@@ -27,7 +27,12 @@
     "import_error": "Error: Invalid backup file.",
     "status_change": "Change",
     "btn_close": "Close",
-    "unit_days": "d"
+    "unit_days": "d",
+    "fasting_title": "Ramadan Ledger",
+    "fasting_subtitle": "Track your Missed Fasts (Qada)",
+    "days_remaining": "Days Remaining",
+    "missed_fast": "Missed",
+    "made_up_fast": "Made Up"
   },
   "ar": {
     "app_name": "طهارة",
@@ -52,6 +57,11 @@
     "import_error": "خطأ: ملف النسخ الاحتياطي غير صالح.",
     "status_change": "تغيير",
     "btn_close": "إغلاق",
-    "unit_days": "ي"
+    "unit_days": "ي",
+    "fasting_title": "سجل القضاء",
+    "fasting_subtitle": "متابعة الأيام الفائتة",
+    "days_remaining": "الأيام المتبقية",
+    "missed_fast": "فائت (حيض)",
+    "made_up_fast": "تم قضاؤه"
   }
 }

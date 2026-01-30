@@ -7,6 +7,8 @@
         status: localStorage.getItem("tahara_status") || "purity",
         lastChanged: localStorage.getItem("tahara_last_changed") || new Date().toISOString(),
         history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
+        // NEW: Fasting State
+        fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}')
     };
 
     const el = (id) => document.getElementById(id);
@@ -15,6 +17,65 @@
     function S(key, fallback) {
         return App.uiStrings[key] || fallback || "";
     }
+
+    // 2. FASTING LOGIC (New)
+    function saveFasting() {
+        localStorage.setItem("tahara_fasting", JSON.stringify(App.fasting));
+        updateFastingUI();
+    }
+
+    window.updateDebt = (delta) => {
+        const newVal = App.fasting.missed + delta;
+        if (newVal >= 0) {
+            App.fasting.missed = newVal;
+            saveFasting();
+        }
+    };
+
+    window.updatePaid = (delta) => {
+        const newVal = App.fasting.paid + delta;
+        // Cannot pay more than missed (optional rule, but logical)
+        if (newVal >= 0 && newVal <= App.fasting.missed) {
+            App.fasting.paid = newVal;
+            saveFasting();
+        }
+    };
+
+    function updateFastingUI() {
+        const remaining = App.fasting.missed - App.fasting.paid;
+
+        // Modal Values
+        if (el("debtDisplay")) el("debtDisplay").innerText = remaining;
+        if (el("totalMissed")) el("totalMissed").innerText = App.fasting.missed;
+        if (el("totalPaid")) el("totalPaid").innerText = App.fasting.paid;
+
+        // Navbar Dot Logic (Show red dot if debt > 0)
+        const dot = el("debtDot");
+        if (dot) {
+            if (remaining > 0) dot.classList.remove("hidden");
+            else dot.classList.add("hidden");
+        }
+    }
+
+    window.openFasting = () => {
+        const modal = el("fastingModal");
+        const content = el("fastingContent");
+        modal.classList.remove("hidden");
+        // Simple fade-in pop animation
+        setTimeout(() => {
+            content.classList.remove("scale-95", "opacity-0");
+            content.classList.add("scale-100", "opacity-100");
+        }, 10);
+        updateFastingUI();
+    };
+
+    window.closeFasting = () => {
+        const modal = el("fastingModal");
+        const content = el("fastingContent");
+        content.classList.remove("scale-100", "opacity-100");
+        content.classList.add("scale-95", "opacity-0");
+        setTimeout(() => modal.classList.add("hidden"), 300);
+    };
 
     // 2. CALENDAR ENGINE
     window.changeMonth = (delta) => {
@@ -29,17 +90,12 @@
         const legendContainer = el("calendarLegend");
 
         if (!grid || !monthLabel) return;
-
-        // Force Sort: Newest -> Oldest
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
-
         grid.innerHTML = "";
 
-        // A. Header: Month Name
         const monthName = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
         monthLabel.innerText = monthName;
 
-        // B. Weekdays
         const daysAr = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
         const daysEn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
         const days = App.currentLang === 'ar' ? daysAr : daysEn;
@@ -47,7 +103,6 @@
             weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join('');
         }
 
-        // C. Legend
         if (legendContainer) {
             legendContainer.innerHTML = `
                 <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div>
@@ -56,7 +111,6 @@
             `;
         }
 
-        // D. Draw Days
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
         const firstDay = new Date(year, month, 1).getDay();
@@ -69,17 +123,13 @@
 
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day, 23, 59, 59);
-
             const hasTransition = App.history.some(e => {
                 const d = new Date(e.time);
                 return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
             });
-
             const endState = getStateForDate(currentDayDate);
 
-            let bgClass = "";
-            let textClass = "";
-
+            let bgClass = "", textClass = "";
             if (hasTransition) {
                 bgClass = "bg-purple-100 dark:bg-purple-900/60";
                 textClass = "text-purple-700 dark:text-purple-100 font-bold";
@@ -90,15 +140,9 @@
                 bgClass = "bg-amber-50 dark:bg-amber-900/20";
                 textClass = "text-amber-700 dark:text-amber-200 font-bold";
             }
-
             const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
             const borderClass = isToday ? "ring-2 ring-amber-500 font-black z-10 scale-110" : "";
-
-            grid.innerHTML += `
-                <div class="h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">
-                    ${day}
-                </div>
-            `;
+            grid.innerHTML += `<div class="h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">${day}</div>`;
         }
     }
 
@@ -129,27 +173,19 @@
             orb.classList.add("status-hayd-pulse");
             if (descText) descText.innerText = S("status_hayd_desc", "Prayer paused.");
         }
+        updateFastingUI(); // Update dot on load
     }
 
-    // HELPER: Format Date + Time (e.g., "Jan 30, 2:30 PM")
     function formatDateTime(isoString) {
         const d = new Date(isoString);
-        return d.toLocaleString(App.currentLang, {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
-        });
+        return d.toLocaleString(App.currentLang, {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
     }
 
     function renderHistory() {
         const list = el("history-list");
         const drawer = el("history-drawer");
-
-        // FIX: Always show drawer so Restore button is visible even if empty
         drawer.classList.remove("opacity-0", "translate-y-10");
         drawer.style.opacity = "1";
-
         let html = "";
 
         if (App.history.length === 0) {
@@ -159,7 +195,6 @@
                 const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-400';
                 const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
                 const textCol = entry.status === 'hayd' ? 'dark:text-rose-200' : 'dark:text-amber-100';
-
                 return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in">
                     <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span>
                     <span class="${textCol} font-bold text-slate-600">${label}</span></div>
@@ -168,11 +203,8 @@
             }).join('');
         }
 
-        // Always show Action Buttons
         html += `<div class="flex gap-2 mt-4">
-            <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">
-                ${S("full_insights", "Full Insights")}
-            </button>
+            <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button>
             <button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button>
         </div>
         <div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4">
@@ -182,8 +214,6 @@
         </div>`;
 
         list.innerHTML = html;
-
-        // Re-attach listeners
         setTimeout(() => {
             if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
             if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
@@ -193,7 +223,6 @@
         }, 0);
     }
 
-    // --- LOGIC HELPERS ---
     function saveState() {
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         localStorage.setItem("tahara_status", App.status);
@@ -212,10 +241,12 @@
     }
 
     function exportData() {
+        // Updated Export to include Fasting Data
         const data = {
             tahara_status: App.status,
             tahara_last_changed: App.lastChanged,
             tahara_history: App.history,
+            tahara_fasting: App.fasting, // NEW
             export_date: new Date().toISOString()
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
@@ -243,7 +274,12 @@
                         App.status = data.tahara_status;
                         App.lastChanged = data.tahara_last_changed;
                         App.history = data.tahara_history;
+                        // Import Fasting Data if exists, else reset
+                        App.fasting = data.tahara_fasting || {missed: 0, paid: 0};
+
+                        // Save both
                         saveState();
+                        saveFasting();
                         location.reload();
                     }
                 } catch (err) {
@@ -256,7 +292,7 @@
     }
 
     function deleteLastEntry() {
-        if (App.history.length === 0) return; // Fix for undo on empty list
+        if (App.history.length === 0) return;
         if (confirm(S("delete_confirm", "Delete last entry?"))) {
             App.history.shift();
             if (App.history.length > 0) {
@@ -277,6 +313,7 @@
         if (confirm(S("clear_confirm", "Clear all?"))) {
             localStorage.clear();
             App.history = [];
+            App.fasting = {missed: 0, paid: 0}; // Reset fasting too
             App.status = "purity";
             App.lastChanged = new Date().toISOString();
             updateStatusUI();
@@ -311,12 +348,8 @@
                 pCount++;
             }
         }
-
-        // FIX: Get the translated unit ('d' or 'ي')
         const unit = S("unit_days", "d");
-
         const toDays = (ms, count) => count > 0 ? Math.round(ms / 86400000 / count) + unit : '--';
-
         if (el("avgCycleText")) el("avgCycleText").innerText = toDays(hTotal, hCount);
         if (el("avgPurityText")) el("avgPurityText").innerText = toDays(pTotal, pCount);
     }
@@ -364,6 +397,9 @@
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
         };
+        // NEW: Fasting Listener
+        if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
+
         if (langSel) langSel.onchange = (e) => {
             localStorage.setItem("tahara_userLang", e.target.value);
             location.reload();
@@ -372,10 +408,8 @@
 
     window.openInsights = () => {
         el("insightsModal").classList.remove("hidden");
-        // FIX: Scroll to top of modal content
         const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
         if (scrollContainer) scrollContainer.scrollTop = 0;
-
         setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
         calculateAverages();
         renderCalendar();
@@ -393,7 +427,6 @@
         fullList.innerHTML = App.history.map(entry => {
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
-            // NEW: Show Date + Time
             return `<div class="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex justify-between items-center">
                 <span class="text-sm font-bold ${color}">${label}</span>
                 <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
