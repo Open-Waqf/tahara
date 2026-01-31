@@ -481,6 +481,65 @@
     }
 
     // ==========================================
+    // 7. DRAG-TO-DISMISS LOGIC (New)
+    // ==========================================
+    function initDragToDismiss() {
+        const handle = el("modalHandle");
+        const content = el("modalContent");
+
+        if (!handle || !content) return;
+
+        let startY = 0;
+        let currentY = 0;
+        let isDragging = false;
+
+        handle.addEventListener("touchstart", (e) => {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            // Disable transition for instant follow
+            content.style.transition = "none";
+        }, {passive: true});
+
+        handle.addEventListener("touchmove", (e) => {
+            if (!isDragging) return;
+            currentY = e.touches[0].clientY;
+            const delta = currentY - startY;
+
+            // Only allow dragging DOWN (positive delta)
+            if (delta > 0) {
+                // Add resistance (rubber banding) effectively by just moving 1:1 for now
+                content.style.transform = `translateY(${delta}px)`;
+            }
+        }, {passive: true});
+
+        handle.addEventListener("touchend", () => {
+            if (!isDragging) return;
+            isDragging = false;
+
+            const delta = currentY - startY;
+
+            // Re-enable smooth transition
+            content.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)";
+
+            // Threshold: If dragged more than 120px down, close it.
+            if (delta > 120) {
+                // 1. Animate visually off screen
+                content.style.transform = "translateY(100%)";
+
+                // 2. Wait for animation, then actually close state
+                setTimeout(() => {
+                    closeInsights();
+                    // Reset inline styles so class-based toggling works next time
+                    content.style.transform = "";
+                }, 300);
+            } else {
+                // Snap back to top
+                content.style.transform = "";
+            }
+        });
+    }
+
+    // ==========================================
     // 6. INSTALL PROMPT & INIT
     // ==========================================
     let deferredPrompt;
@@ -571,6 +630,7 @@
         updateLiveCounter();
         setInterval(updateLiveCounter, 1000);
         checkVersion();
+        initDragToDismiss();
 
         el("mainActionBtn").onclick = toggleStatus;
         el("themeToggle").onclick = () => {
