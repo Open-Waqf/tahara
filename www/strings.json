@@ -50,7 +50,9 @@
     "install_android_btn": "Install Tahara",
     "btn_dismiss": "Maybe Later",
     "no_history": "No history yet",
-    "msg_welcome": "Welcome to Tahara. Tap below to log your first change."
+    "msg_welcome": "Welcome to Tahara. Tap below to log your first change.",
+    "contact_label": "Contact Support",
+    "contact_email": "support@openwaqf.org"
   },
   "ar": {
     "app_name": "طهارة",
@@ -98,6 +100,7 @@
     "install_android_btn": "تثبيت طهارة",
     "btn_dismiss": "لاحقاً",
     "no_history": "لا يوجد سجل بعد",
-    "msg_welcome": "مرحباً بك في طهارة. اضغطي أدناه لبدء التسجيل."
+    "msg_welcome": "مرحباً بك في طهارة. اضغطي أدناه لبدء التسجيل.",
+    "contact_label": "تواصل معنا"
   }
 }

@@ -4,22 +4,29 @@
     // ==========================================
     const App = {
         uiStrings: {},
+        defaultStrings: {}, // Fallback (English)
         currentLang: localStorage.getItem("tahara_userLang") || (navigator.language.startsWith('ar') ? 'ar' : 'en'),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
         status: localStorage.getItem("tahara_status") || "purity",
         lastChanged: localStorage.getItem("tahara_last_changed") || new Date().toISOString(),
         history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
         fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}'),
-        // Prediction Cache
+        modalOpen: false, // For Back Button handling
         avgCycleLength: 0,
         avgHaydLength: 0
     };
 
     const el = (id) => document.getElementById(id);
-    let calDate = new Date(); // Tracks the calendar month view
+    let calDate = new Date();
 
+    // Smart Translation with Fallback
     function S(key, fallback) {
-        return App.uiStrings[key] || fallback || "";
+        // 1. Try current language
+        if (App.uiStrings[key]) return App.uiStrings[key];
+        // 2. Try default language (English)
+        if (App.defaultStrings[key]) return App.defaultStrings[key];
+        // 3. Use code fallback
+        return fallback || "";
     }
 
     function formatDateTime(isoString) {
@@ -28,27 +35,54 @@
     }
 
     // ==========================================
-    // 2. CORE LOGIC (Prediction & Fiqh)
+    // 2. NATIVE ANDROID FEATURES (No Build Tool)
+    // ==========================================
+    async function initNativeFeatures() {
+        // Check if running in Capacitor (Native App)
+        if (typeof Capacitor === 'undefined') return;
+
+        const {App: CapApp} = Capacitor.Plugins;
+        const {StatusBar, Style} = Capacitor.Plugins;
+
+        // 1. Handle Status Bar Color
+        try {
+            if (App.isDark) {
+                await StatusBar.setStyle({style: Style.Dark});
+                await StatusBar.setBackgroundColor({color: '#1a1617'});
+            } else {
+                await StatusBar.setStyle({style: Style.Light});
+                await StatusBar.setBackgroundColor({color: '#fff1f2'});
+            }
+        } catch (e) {
+        }
+
+        // 2. Handle Hardware Back Button
+        CapApp.addListener('backButton', ({canGoBack}) => {
+            if (App.modalOpen) {
+                // Close modals if open
+                if (!el("insightsModal").classList.contains("hidden")) window.closeInsights();
+                if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
+            } else {
+                // Minimize app if on home screen
+                CapApp.exitApp();
+            }
+        });
+    }
+
+    // ==========================================
+    // 3. CORE LOGIC (Prediction & Fiqh)
     // ==========================================
     function calculateStats() {
         if (App.history.length < 2) return;
-
-        // Extract all 'Hayd' start dates
         const haydStarts = App.history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
         if (haydStarts.length < 2) return;
 
-        // 1. Calculate Average Cycle (Start to Start)
         let totalCycleMs = 0;
-        for (let i = 0; i < haydStarts.length - 1; i++) {
-            totalCycleMs += (haydStarts[i] - haydStarts[i + 1]);
-        }
+        for (let i = 0; i < haydStarts.length - 1; i++) totalCycleMs += (haydStarts[i] - haydStarts[i + 1]);
         App.avgCycleLength = totalCycleMs / (haydStarts.length - 1);
 
-        // 2. Calculate Average Hayd Duration
-        let totalHaydMs = 0;
-        let haydCount = 0;
+        let totalHaydMs = 0, haydCount = 0;
         for (let i = 0; i < App.history.length - 1; i++) {
-            // Find pairs where status goes from Hayd -> Purity
             if (App.history[i + 1].status === 'hayd' && App.history[i].status === 'purity') {
                 totalHaydMs += (new Date(App.history[i].time) - new Date(App.history[i + 1].time));
                 haydCount++;
@@ -56,35 +90,30 @@
         }
         if (haydCount > 0) App.avgHaydLength = totalHaydMs / haydCount;
 
-        // Update UI
         const unit = S("unit_days", "d");
         const toDays = (ms) => Math.round(ms / 86400000) + unit;
-
         if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
         if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
 
-        // Update "Next Expected" text
         const lastStart = haydStarts[0];
         const nextStart = new Date(lastStart.getTime() + App.avgCycleLength);
-        if (el("nextPeriodText")) {
-            el("nextPeriodText").innerText = nextStart.toLocaleDateString(App.currentLang, {
-                weekday: 'short', month: 'short', day: 'numeric'
-            });
-        }
+        if (el("nextPeriodText")) el("nextPeriodText").innerText = nextStart.toLocaleDateString(App.currentLang, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+        });
     }
 
     function updateContextMessage() {
         const descText = document.querySelector("[data-i18n='status_desc']");
         if (!descText) return;
 
-        // 1. Fresh Install State
         if (App.history.length === 0) {
             descText.innerText = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
             descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
             return;
         }
 
-        // 2. Calculate Context
         const now = new Date();
         const diffMs = now - new Date(App.lastChanged);
         const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -92,92 +121,69 @@
 
         if (App.status === "purity") {
             if (days === 0) {
-                // Specific advice for the day you become pure
-                if (hour >= 4 && hour < 12) {
-                    descText.innerText = S("msg_purity_day0_morning", "You just became pure. Perform Ghusl and pray Fajr.");
-                } else if (hour >= 12 && hour < 17) {
-                    descText.innerText = S("msg_purity_day0_afternoon", "You just became pure. Perform Ghusl. You should pray Zuhr and Asr.");
-                } else {
-                    descText.innerText = S("msg_purity_day0_evening", "You just became pure. Perform Ghusl. You should pray Maghrib and Isha.");
-                }
+                if (hour >= 4 && hour < 12) descText.innerText = S("msg_purity_day0_morning");
+                else if (hour >= 12 && hour < 17) descText.innerText = S("msg_purity_day0_afternoon");
+                else descText.innerText = S("msg_purity_day0_evening");
                 descText.classList.add("text-amber-600", "font-bold");
             } else {
-                // General advice
-                descText.innerText = S("msg_purity_general", "You are in a state of purity. Keep your heart attached to Salah.");
+                descText.innerText = S("msg_purity_general");
                 descText.classList.remove("text-amber-600", "font-bold");
             }
         } else {
-            // Hayd Advice
             if (days >= 15) {
-                descText.innerText = S("msg_hayd_warning_shafi", "Day 15+. Exceeding 15 days is considered Istihadah. You must resume prayer.");
+                descText.innerText = S("msg_hayd_warning_shafi");
                 descText.classList.add("text-rose-600", "font-bold");
             } else if (days >= 10) {
-                descText.innerText = S("msg_hayd_warning_hanafi", "Day 10+. Exceeding 10 days is considered Istihadah in Hanafi fiqh.");
+                descText.innerText = S("msg_hayd_warning_hanafi");
                 descText.classList.add("text-rose-600", "font-bold");
             } else if (days <= 3) {
-                descText.innerText = S("msg_hayd_early", "Prayer and Fasting are paused. Rest is an act of worship.");
+                descText.innerText = S("msg_hayd_early");
                 descText.classList.remove("text-rose-600", "font-bold");
             } else {
-                descText.innerText = S("msg_hayd_generic", "Prayer paused. Taking care of your health is worship.");
+                descText.innerText = S("msg_hayd_generic");
                 descText.classList.remove("text-rose-600", "font-bold");
             }
         }
     }
 
     // ==========================================
-    // 3. CALENDAR & HISTORY UI
+    // 4. CALENDAR UI
     // ==========================================
-    function getStateForDate(dateObj) {
-        const entry = App.history.find(e => new Date(e.time) <= dateObj);
-        return entry ? entry.status : 'purity';
-    }
-
     window.changeMonth = (delta) => {
         calDate.setMonth(calDate.getMonth() + delta);
         renderCalendar();
     };
+
+    function getStateForDate(dateObj) {
+        const entry = App.history.find(e => new Date(e.time) <= dateObj);
+        return entry ? entry.status : 'purity';
+    }
 
     function renderCalendar() {
         const grid = el("calendarDays");
         const monthLabel = el("calMonthYear");
         const weekHeader = el("calendarWeekdays");
         const legendContainer = el("calendarLegend");
-
         if (!grid || !monthLabel) return;
 
-        // Update stats before rendering to get prediction dates
         calculateStats();
-
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         grid.innerHTML = "";
-
         monthLabel.innerText = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
 
-        // Weekday Headers
         const daysAr = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
         const daysEn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
         const days = App.currentLang === 'ar' ? daysAr : daysEn;
-        if (weekHeader) {
-            weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join('');
-        }
-
-        // Legend
-        if (legendContainer) {
-            legendContainer.innerHTML = `
-                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div>
-                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_change", "Change")}</span></div>
-                <div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-200 dark:bg-rose-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_hayd", "Hayd")}</span></div>
-            `;
-        }
+        if (weekHeader) weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join('');
+        if (legendContainer) legendContainer.innerHTML = `<div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_change", "Change")}</span></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-200 dark:bg-rose-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_hayd", "Hayd")}</span></div>`;
 
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const now = new Date();
-
-        // Calculate Predicted Window
         let predStart = null, predEnd = null;
+
         if (App.avgCycleLength > 0 && App.history.length > 0) {
             const lastHayd = App.history.find(e => e.status === 'hayd');
             if (lastHayd) {
@@ -188,29 +194,19 @@
             }
         }
 
-        // Empty slots for start of month
-        for (let i = 0; i < firstDay; i++) {
-            grid.innerHTML += `<div></div>`;
-        }
+        for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
 
-        // Render Days
         for (let day = 1; day <= daysInMonth; day++) {
-            const currentDayDate = new Date(year, month, day, 12, 0, 0); // Noon
-
+            const currentDayDate = new Date(year, month, day, 12, 0, 0);
             const hasTransition = App.history.some(e => {
                 const d = new Date(e.time);
                 return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
             });
             const endState = getStateForDate(currentDayDate);
-
-            // Check if this day is within prediction window
             let isPredicted = false;
-            if (predStart && currentDayDate >= predStart && currentDayDate <= predEnd && currentDayDate > now) {
-                isPredicted = true;
-            }
+            if (predStart && currentDayDate >= predStart && currentDayDate <= predEnd && currentDayDate > now) isPredicted = true;
 
             let bgClass = "", textClass = "", borderClass = "";
-
             if (isPredicted) {
                 bgClass = "bg-transparent";
                 textClass = "text-slate-400 dark:text-slate-500 font-bold";
@@ -225,10 +221,8 @@
                 bgClass = "bg-amber-50 dark:bg-amber-900/20";
                 textClass = "text-amber-700 dark:text-amber-200 font-bold";
             }
-
             const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
             if (isToday) borderClass = "ring-2 ring-amber-500 font-black z-10 scale-110";
-
             grid.innerHTML += `<div class="h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">${day}</div>`;
         }
     }
@@ -238,8 +232,8 @@
         const drawer = el("history-drawer");
         drawer.classList.remove("opacity-0", "translate-y-10");
         drawer.style.opacity = "1";
-
         let html = "";
+
         if (App.history.length === 0) {
             html = `<div class="text-center text-slate-400 text-xs py-4 italic">${S("no_history", "No history yet")}</div>`;
         } else {
@@ -247,10 +241,7 @@
                 const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-400';
                 const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
                 const textCol = entry.status === 'hayd' ? 'dark:text-rose-200' : 'dark:text-amber-100';
-                return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in">
-                    <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span><span class="${textCol} font-bold text-slate-600">${label}</span></div>
-                    <span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span>
-                </div>`;
+                return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span><span class="${textCol} font-bold text-slate-600">${label}</span></div><span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span></div>`;
             }).join('');
         }
 
@@ -258,8 +249,6 @@
         <div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4"><button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button><button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button><button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button></div>`;
 
         list.innerHTML = html;
-
-        // Re-attach listeners after HTML injection
         setTimeout(() => {
             if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
             if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
@@ -280,59 +269,87 @@
     }
 
     // ==========================================
-    // 4. FASTING LOGIC (Ramadan Ledger)
+    // 5. MODAL CONTROL & DRAG
     // ==========================================
-    function saveFasting() {
-        localStorage.setItem("tahara_fasting", JSON.stringify(App.fasting));
-        updateFastingUI();
-    }
+    window.openInsights = () => {
+        el("insightsModal").classList.remove("hidden");
+        document.body.style.overflow = "hidden"; // Lock scroll
+        App.modalOpen = true;
 
-    function updateFastingUI() {
-        const remaining = App.fasting.missed - App.fasting.paid;
-        if (el("debtDisplay")) el("debtDisplay").innerText = remaining;
-        if (el("totalMissed")) el("totalMissed").innerText = App.fasting.missed;
-        if (el("totalPaid")) el("totalPaid").innerText = App.fasting.paid;
-        const dot = el("debtDot");
-        if (dot) (remaining > 0) ? dot.classList.remove("hidden") : dot.classList.add("hidden");
-    }
+        const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
+        if (scrollContainer) scrollContainer.scrollTop = 0;
+        setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
 
-    window.updateDebt = (delta) => {
-        const newVal = App.fasting.missed + delta;
-        if (newVal >= 0) {
-            App.fasting.missed = newVal;
-            saveFasting();
-        }
+        renderCalendar();
+        renderFullInsights();
     };
 
-    window.updatePaid = (delta) => {
-        const newVal = App.fasting.paid + delta;
-        if (newVal >= 0 && newVal <= App.fasting.missed) {
-            App.fasting.paid = newVal;
-            saveFasting();
-        }
+    window.closeInsights = () => {
+        el("modalContent").classList.add("translate-y-full");
+        setTimeout(() => {
+            el("insightsModal").classList.add("hidden");
+            document.body.style.overflow = ""; // Unlock scroll
+            App.modalOpen = false;
+        }, 500);
     };
 
     window.openFasting = () => {
-        const modal = el("fastingModal");
-        const content = el("fastingContent");
-        modal.classList.remove("hidden");
+        el("fastingModal").classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        App.modalOpen = true;
         setTimeout(() => {
-            content.classList.remove("scale-95", "opacity-0");
-            content.classList.add("scale-100", "opacity-100");
+            el("fastingContent").classList.remove("scale-95", "opacity-0");
+            el("fastingContent").classList.add("scale-100", "opacity-100");
         }, 10);
         updateFastingUI();
     };
 
     window.closeFasting = () => {
-        const modal = el("fastingModal");
-        const content = el("fastingContent");
-        content.classList.remove("scale-100", "opacity-100");
-        content.classList.add("scale-95", "opacity-0");
-        setTimeout(() => modal.classList.add("hidden"), 300);
+        el("fastingContent").classList.remove("scale-100", "opacity-100");
+        el("fastingContent").classList.add("scale-95", "opacity-0");
+        setTimeout(() => {
+            el("fastingModal").classList.add("hidden");
+            document.body.style.overflow = "";
+            App.modalOpen = false;
+        }, 300);
     };
 
+    function initDragToDismiss() {
+        const handle = el("modalHandle");
+        const content = el("modalContent");
+        if (!handle || !content) return;
+
+        let startY = 0, currentY = 0, isDragging = false;
+        handle.addEventListener("touchstart", (e) => {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            content.style.transition = "none";
+        }, {passive: true});
+        handle.addEventListener("touchmove", (e) => {
+            if (!isDragging) return;
+            currentY = e.touches[0].clientY;
+            const delta = currentY - startY;
+            if (delta > 0) content.style.transform = `translateY(${delta}px)`;
+        }, {passive: true});
+        handle.addEventListener("touchend", () => {
+            if (!isDragging) return;
+            isDragging = false;
+            const delta = currentY - startY;
+            content.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)";
+            if (delta > 120) {
+                content.style.transform = "translateY(100%)";
+                setTimeout(() => {
+                    closeInsights();
+                    content.style.transform = "";
+                }, 300);
+            } else {
+                content.style.transform = "";
+            }
+        });
+    }
+
     // ==========================================
-    // 5. STATE MANAGEMENT & DATA
+    // 6. STATE & ACTIONS
     // ==========================================
     function saveState() {
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -355,9 +372,7 @@
         const orb = document.querySelector(".status-orb");
         const statusText = el("current-state-text");
         const actionBtn = el("mainActionBtn");
-
         updateContextMessage();
-
         if (App.status === "purity") {
             statusText.innerText = S("status_purity", "Purity");
             statusText.className = "text-3xl font-black text-amber-600 dark:text-amber-100 transition-colors";
@@ -374,34 +389,35 @@
         updateFastingUI();
     }
 
-    function updateLiveCounter() {
-        const diff = Math.max(0, new Date() - new Date(App.lastChanged));
-        const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000),
-            m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
-        const l = App.currentLang === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['d', 'h', 'm', 's'];
-        const elTimer = el("time-elapsed");
-        if (elTimer) elTimer.innerText = `${d}${l[0]} ${h}${l[1]} ${m}${l[2]} ${s}${l[3]}`;
-        updateContextMessage();
+    function saveFasting() {
+        localStorage.setItem("tahara_fasting", JSON.stringify(App.fasting));
+        updateFastingUI();
     }
 
-    // Modal Control
-    window.openInsights = () => {
-        el("insightsModal").classList.remove("hidden");
-        const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
-        if (scrollContainer) scrollContainer.scrollTop = 0;
-        setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
+    function updateFastingUI() {
+        const remaining = App.fasting.missed - App.fasting.paid;
+        if (el("debtDisplay")) el("debtDisplay").innerText = remaining;
+        if (el("totalMissed")) el("totalMissed").innerText = App.fasting.missed;
+        if (el("totalPaid")) el("totalPaid").innerText = App.fasting.paid;
+        const dot = el("debtDot");
+        if (dot) (remaining > 0) ? dot.classList.remove("hidden") : dot.classList.add("hidden");
+    }
 
-        // renderCalendar calls calculateStats(), so we don't need to call it twice.
-        renderCalendar();
-        renderFullInsights();
+    window.updateDebt = (delta) => {
+        const newVal = App.fasting.missed + delta;
+        if (newVal >= 0) {
+            App.fasting.missed = newVal;
+            saveFasting();
+        }
+    };
+    window.updatePaid = (delta) => {
+        const newVal = App.fasting.paid + delta;
+        if (newVal >= 0 && newVal <= App.fasting.missed) {
+            App.fasting.paid = newVal;
+            saveFasting();
+        }
     };
 
-    window.closeInsights = () => {
-        el("modalContent").classList.add("translate-y-full");
-        setTimeout(() => el("insightsModal").classList.add("hidden"), 500);
-    };
-
-    // Data Management
     function exportData() {
         const data = {
             tahara_status: App.status,
@@ -480,67 +496,18 @@
         }
     }
 
-    // ==========================================
-    // 7. DRAG-TO-DISMISS LOGIC (New)
-    // ==========================================
-    function initDragToDismiss() {
-        const handle = el("modalHandle");
-        const content = el("modalContent");
-
-        if (!handle || !content) return;
-
-        let startY = 0;
-        let currentY = 0;
-        let isDragging = false;
-
-        handle.addEventListener("touchstart", (e) => {
-            startY = e.touches[0].clientY;
-            isDragging = true;
-            // Disable transition for instant follow
-            content.style.transition = "none";
-        }, {passive: true});
-
-        handle.addEventListener("touchmove", (e) => {
-            if (!isDragging) return;
-            currentY = e.touches[0].clientY;
-            const delta = currentY - startY;
-
-            // Only allow dragging DOWN (positive delta)
-            if (delta > 0) {
-                // Add resistance (rubber banding) effectively by just moving 1:1 for now
-                content.style.transform = `translateY(${delta}px)`;
-            }
-        }, {passive: true});
-
-        handle.addEventListener("touchend", () => {
-            if (!isDragging) return;
-            isDragging = false;
-
-            const delta = currentY - startY;
-
-            // Re-enable smooth transition
-            content.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)";
-
-            // Threshold: If dragged more than 120px down, close it.
-            if (delta > 120) {
-                // 1. Animate visually off screen
-                content.style.transform = "translateY(100%)";
-
-                // 2. Wait for animation, then actually close state
-                setTimeout(() => {
-                    closeInsights();
-                    // Reset inline styles so class-based toggling works next time
-                    content.style.transform = "";
-                }, 300);
-            } else {
-                // Snap back to top
-                content.style.transform = "";
-            }
-        });
+    function updateLiveCounter() {
+        const diff = Math.max(0, new Date() - new Date(App.lastChanged));
+        const d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000),
+            m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
+        const l = App.currentLang === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['d', 'h', 'm', 's'];
+        const elTimer = el("time-elapsed");
+        if (elTimer) elTimer.innerText = `${d}${l[0]} ${h}${l[1]} ${m}${l[2]} ${s}${l[3]}`;
+        updateContextMessage();
     }
 
     // ==========================================
-    // 6. INSTALL PROMPT & INIT
+    // 7. INSTALL & INIT
     // ==========================================
     let deferredPrompt;
 
@@ -562,15 +529,11 @@
         const banner = el("installBanner");
         const iosText = el("iosInstallText");
         const androidBtn = el("androidInstallBtn");
-
         if (!banner) return;
-
         if (platform === "ios") {
             iosText.classList.remove("hidden");
             const rawText = S("install_ios_desc", "Tap Share and Add to Home Screen");
-            iosText.innerHTML = rawText
-                .replace("%share_icon%", '<span class="text-blue-500 text-base">⎋</span>')
-                .replace("%plus_icon%", '<span class="text-slate-700 dark:text-slate-300 font-bold text-base">⊞</span>');
+            iosText.innerHTML = rawText.replace("%share_icon%", '<span class="text-blue-500 text-base">⎋</span>').replace("%plus_icon%", '<span class="text-slate-700 dark:text-slate-300 font-bold text-base">⊞</span>');
         } else {
             androidBtn.classList.remove("hidden");
             androidBtn.onclick = async () => {
@@ -610,33 +573,50 @@
             const res = await fetch("strings.json");
             const raw = await res.json();
             App.uiStrings = raw[App.currentLang] || raw['en'];
+            App.defaultStrings = raw['en']; // Load default for fallback
         } catch (e) {
         }
 
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
         document.documentElement.lang = App.currentLang;
         document.body.classList.toggle("dark", App.isDark);
-
         const langSel = el("langSelect");
         if (langSel) langSel.value = App.currentLang;
-
         document.querySelectorAll("[data-i18n]").forEach(node => {
             const key = node.getAttribute("data-i18n");
             if (S(key)) node.innerText = S(key);
         });
+
+        // Setup Contact Link (Android Safe Mode)
+        const contactBtn = el("contactBtn");
+        if (contactBtn) {
+            const email = S("contact_email");
+            const mailtoUrl = `mailto:${email}`;
+
+            contactBtn.href = mailtoUrl; // Fallback for browser
+
+            // Force Android to open the system email app
+            contactBtn.onclick = (e) => {
+                // If we are in the Native App (Capacitor), handle manually
+                if (typeof Capacitor !== 'undefined') {
+                    e.preventDefault();
+                    window.open(mailtoUrl, '_system');
+                }
+            };
+        }
 
         updateStatusUI();
         renderHistory();
         updateLiveCounter();
         setInterval(updateLiveCounter, 1000);
         checkVersion();
-        initDragToDismiss();
 
         el("mainActionBtn").onclick = toggleStatus;
         el("themeToggle").onclick = () => {
             App.isDark = !App.isDark;
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
+            initNativeFeatures(); // Re-trigger status bar update
         };
         if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
         if (langSel) langSel.onchange = (e) => {
@@ -644,6 +624,8 @@
             location.reload();
         };
 
+        initDragToDismiss();
+        initNativeFeatures();
         setTimeout(checkInstall, 3000);
     }
 
