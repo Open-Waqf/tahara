@@ -11,6 +11,10 @@
         lastChanged: localStorage.getItem("tahara_last_changed") || new Date().toISOString(),
         history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
         fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}'),
+        // NEW: Daily Logs for Retention
+        dailyLogs: JSON.parse(localStorage.getItem("tahara_logs") || "{}"),
+        selectedDate: new Date(), // Date selected in calendar for logging
+
         modalOpen: false, // For Back Button handling
         avgCycleLength: 0,
         avgHaydLength: 0
@@ -19,13 +23,15 @@
     const el = (id) => document.getElementById(id);
     let calDate = new Date();
 
-    // Smart Translation with Fallback
+    // Data for Moods/Symptoms tags
+    const TAGS = {
+        moods: ['mood_happy', 'mood_calm', 'mood_tired', 'mood_irritable', 'mood_sad'],
+        symptoms: ['sym_cramps', 'sym_headache', 'sym_bloating', 'sym_acne', 'sym_nausea']
+    };
+
     function S(key, fallback) {
-        // 1. Try current language
         if (App.uiStrings[key]) return App.uiStrings[key];
-        // 2. Try default language (English)
         if (App.defaultStrings[key]) return App.defaultStrings[key];
-        // 3. Use code fallback
         return fallback || "";
     }
 
@@ -34,17 +40,20 @@
         return d.toLocaleString(App.currentLang, {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
     }
 
+    // Helper: Get YYYY-MM-DD from Date object (Local time)
+    function getIsoDate(dateObj) {
+        const offset = dateObj.getTimezoneOffset();
+        const local = new Date(dateObj.getTime() - (offset * 60 * 1000));
+        return local.toISOString().split('T')[0];
+    }
+
     // ==========================================
-    // 2. NATIVE ANDROID FEATURES (No Build Tool)
+    // 2. NATIVE ANDROID FEATURES
     // ==========================================
     async function initNativeFeatures() {
-        // Check if running in Capacitor (Native App)
         if (typeof Capacitor === 'undefined') return;
-
         const {App: CapApp} = Capacitor.Plugins;
         const {StatusBar, Style} = Capacitor.Plugins;
-
-        // 1. Handle Status Bar Color
         try {
             if (App.isDark) {
                 await StatusBar.setStyle({style: Style.Dark});
@@ -55,32 +64,26 @@
             }
         } catch (e) {
         }
-
-        // 2. Handle Hardware Back Button
         CapApp.addListener('backButton', ({canGoBack}) => {
             if (App.modalOpen) {
-                // Close modals if open
                 if (!el("insightsModal").classList.contains("hidden")) window.closeInsights();
                 if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
             } else {
-                // Minimize app if on home screen
                 CapApp.exitApp();
             }
         });
     }
 
     // ==========================================
-    // 3. CORE LOGIC (Prediction & Fiqh)
+    // 3. CORE LOGIC (Stats & Context)
     // ==========================================
     function calculateStats() {
         if (App.history.length < 2) return;
         const haydStarts = App.history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
         if (haydStarts.length < 2) return;
-
         let totalCycleMs = 0;
         for (let i = 0; i < haydStarts.length - 1; i++) totalCycleMs += (haydStarts[i] - haydStarts[i + 1]);
         App.avgCycleLength = totalCycleMs / (haydStarts.length - 1);
-
         let totalHaydMs = 0, haydCount = 0;
         for (let i = 0; i < App.history.length - 1; i++) {
             if (App.history[i + 1].status === 'hayd' && App.history[i].status === 'purity') {
@@ -89,12 +92,10 @@
             }
         }
         if (haydCount > 0) App.avgHaydLength = totalHaydMs / haydCount;
-
         const unit = S("unit_days", "d");
         const toDays = (ms) => Math.round(ms / 86400000) + unit;
         if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
         if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
-
         const lastStart = haydStarts[0];
         const nextStart = new Date(lastStart.getTime() + App.avgCycleLength);
         if (el("nextPeriodText")) el("nextPeriodText").innerText = nextStart.toLocaleDateString(App.currentLang, {
@@ -107,18 +108,15 @@
     function updateContextMessage() {
         const descText = document.querySelector("[data-i18n='status_desc']");
         if (!descText) return;
-
         if (App.history.length === 0) {
             descText.innerText = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
             descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
             return;
         }
-
         const now = new Date();
         const diffMs = now - new Date(App.lastChanged);
         const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         const hour = now.getHours();
-
         if (App.status === "purity") {
             if (days === 0) {
                 if (hour >= 4 && hour < 12) descText.innerText = S("msg_purity_day0_morning");
@@ -147,7 +145,7 @@
     }
 
     // ==========================================
-    // 4. CALENDAR UI
+    // 4. CALENDAR UI & LOGGING
     // ==========================================
     window.changeMonth = (delta) => {
         calDate.setMonth(calDate.getMonth() + delta);
@@ -182,8 +180,10 @@
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const now = new Date();
-        let predStart = null, predEnd = null;
+        const selDateKey = getIsoDate(App.selectedDate);
 
+        // Prediction Window
+        let predStart = null, predEnd = null;
         if (App.avgCycleLength > 0 && App.history.length > 0) {
             const lastHayd = App.history.find(e => e.status === 'hayd');
             if (lastHayd) {
@@ -198,6 +198,7 @@
 
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day, 12, 0, 0);
+            const dateKey = getIsoDate(currentDayDate);
             const hasTransition = App.history.some(e => {
                 const d = new Date(e.time);
                 return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
@@ -207,6 +208,8 @@
             if (predStart && currentDayDate >= predStart && currentDayDate <= predEnd && currentDayDate > now) isPredicted = true;
 
             let bgClass = "", textClass = "", borderClass = "";
+
+            // Base Colors
             if (isPredicted) {
                 bgClass = "bg-transparent";
                 textClass = "text-slate-400 dark:text-slate-500 font-bold";
@@ -221,12 +224,100 @@
                 bgClass = "bg-amber-50 dark:bg-amber-900/20";
                 textClass = "text-amber-700 dark:text-amber-200 font-bold";
             }
+
+            // Selection & Today styling
             const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-            if (isToday) borderClass = "ring-2 ring-amber-500 font-black z-10 scale-110";
-            grid.innerHTML += `<div class="h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${bgClass} ${textClass} ${borderClass}">${day}</div>`;
+            const isSelected = dateKey === selDateKey;
+
+            if (isSelected) {
+                // Strong Outline for selection
+                borderClass = "ring-2 ring-slate-400 dark:ring-slate-500 z-20 scale-105";
+            }
+            if (isToday) {
+                // Amber ring for Today (Priority)
+                borderClass = "ring-2 ring-amber-500 font-black z-30 scale-110";
+            }
+
+            // Log Dot (If logs exist for this day)
+            let dot = "";
+            if (App.dailyLogs[dateKey] && App.dailyLogs[dateKey].length > 0) {
+                dot = `<div class="absolute bottom-1 w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-400"></div>`;
+            }
+
+            grid.innerHTML += `<div onclick="selectDate('${dateKey}')" class="relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all cursor-pointer ${bgClass} ${textClass} ${borderClass}">
+                ${day} ${dot}
+            </div>`;
         }
     }
 
+    // NEW: Handle Date Selection & Log Rendering
+    window.selectDate = (dateStr) => {
+        App.selectedDate = new Date(dateStr);
+        // Correct timezone offset issue when parsing string for display
+        const offset = App.selectedDate.getTimezoneOffset();
+        App.selectedDate = new Date(App.selectedDate.getTime() + (offset * 60 * 1000));
+
+        renderCalendar(); // Re-render to show selection ring
+        renderLogUI();    // Show options for this date
+    };
+
+    function renderLogUI() {
+        const container = el("dailyLogContainer");
+        const dateText = el("selectedDateText");
+        const moodsDiv = el("moodOptions");
+        const symDiv = el("symptomOptions");
+        if (!container) return;
+
+        const dateKey = getIsoDate(App.selectedDate);
+        const activeLogs = App.dailyLogs[dateKey] || [];
+
+        // Show Container
+        container.classList.remove("hidden");
+        dateText.innerText = App.selectedDate.toLocaleDateString(App.currentLang, {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric'
+        });
+
+        // Helper to create tag buttons
+        const createTag = (key) => {
+            const isActive = activeLogs.includes(key);
+            const baseClass = "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border";
+            const activeClass = "bg-rose-500 text-white border-rose-500 shadow-sm";
+            const inactiveClass = "bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/10 hover:border-rose-300";
+
+            return `<button onclick="toggleLog('${key}')" class="${baseClass} ${isActive ? activeClass : inactiveClass}">
+                ${S(key)}
+            </button>`;
+        };
+
+        moodsDiv.innerHTML = TAGS.moods.map(createTag).join('');
+        symDiv.innerHTML = TAGS.symptoms.map(createTag).join('');
+    }
+
+    window.toggleLog = (tagKey) => {
+        const dateKey = getIsoDate(App.selectedDate);
+        if (!App.dailyLogs[dateKey]) App.dailyLogs[dateKey] = [];
+
+        const idx = App.dailyLogs[dateKey].indexOf(tagKey);
+        if (idx > -1) {
+            App.dailyLogs[dateKey].splice(idx, 1); // Remove
+        } else {
+            App.dailyLogs[dateKey].push(tagKey); // Add
+        }
+
+        // Cleanup empty arrays to save space
+        if (App.dailyLogs[dateKey].length === 0) delete App.dailyLogs[dateKey];
+
+        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
+
+        renderLogUI();
+        renderCalendar(); // To update the dot indicator
+    };
+
+    // ==========================================
+    // 5. HISTORY & LISTS
+    // ==========================================
     function renderHistory() {
         const list = el("history-list");
         const drawer = el("history-drawer");
@@ -269,7 +360,7 @@
     }
 
     // ==========================================
-    // 5. MODAL CONTROL & DRAG
+    // 6. MODAL CONTROL & DRAG
     // ==========================================
     window.openInsights = () => {
         el("insightsModal").classList.remove("hidden");
@@ -280,7 +371,10 @@
         if (scrollContainer) scrollContainer.scrollTop = 0;
         setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
 
+        // Reset selection to Today when opening
+        App.selectedDate = new Date();
         renderCalendar();
+        renderLogUI();
         renderFullInsights();
     };
 
@@ -349,7 +443,7 @@
     }
 
     // ==========================================
-    // 6. STATE & ACTIONS
+    // 7. STATE & ACTIONS
     // ==========================================
     function saveState() {
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -424,6 +518,7 @@
             tahara_last_changed: App.lastChanged,
             tahara_history: App.history,
             tahara_fasting: App.fasting,
+            tahara_logs: App.dailyLogs,
             export_date: new Date().toISOString()
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
@@ -452,8 +547,10 @@
                         App.lastChanged = data.tahara_last_changed;
                         App.history = data.tahara_history;
                         App.fasting = data.tahara_fasting || {missed: 0, paid: 0};
+                        App.dailyLogs = data.tahara_logs || {};
                         saveState();
                         saveFasting();
+                        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
                         location.reload();
                     }
                 } catch (err) {
@@ -490,6 +587,7 @@
             App.fasting = {missed: 0, paid: 0};
             App.status = "purity";
             App.lastChanged = new Date().toISOString();
+            App.dailyLogs = {};
             updateStatusUI();
             renderHistory();
             updateLiveCounter();
@@ -507,7 +605,7 @@
     }
 
     // ==========================================
-    // 7. INSTALL & INIT
+    // 8. INSTALL & INIT
     // ==========================================
     let deferredPrompt;
 
@@ -592,12 +690,8 @@
         if (contactBtn) {
             const email = S("contact_email");
             const mailtoUrl = `mailto:${email}`;
-
             contactBtn.href = mailtoUrl; // Fallback for browser
-
-            // Force Android to open the system email app
             contactBtn.onclick = (e) => {
-                // If we are in the Native App (Capacitor), handle manually
                 if (typeof Capacitor !== 'undefined') {
                     e.preventDefault();
                     window.open(mailtoUrl, '_system');
@@ -616,7 +710,7 @@
             App.isDark = !App.isDark;
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
-            initNativeFeatures(); // Re-trigger status bar update
+            initNativeFeatures();
         };
         if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
         if (langSel) langSel.onchange = (e) => {
