@@ -4,18 +4,17 @@
     // ==========================================
     const App = {
         uiStrings: {},
-        defaultStrings: {}, // Fallback (English)
-        currentLang: localStorage.getItem("tahara_userLang") || (navigator.language.startsWith('ar') ? 'ar' : 'en'),
+        defaultStrings: {},
+        currentLang: localStorage.getItem("tahara_userLang") || (['ar', 'fr', 'es', 'it'].includes(navigator.language.split('-')[0]) ? navigator.language.split('-')[0] : 'en'),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
         status: localStorage.getItem("tahara_status") || "purity",
         lastChanged: localStorage.getItem("tahara_last_changed") || new Date().toISOString(),
         history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
         fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}'),
-        // NEW: Daily Logs for Retention
         dailyLogs: JSON.parse(localStorage.getItem("tahara_logs") || "{}"),
-        selectedDate: new Date(), // Date selected in calendar for logging
+        selectedDate: new Date(),
 
-        modalOpen: false, // For Back Button handling
+        modalOpen: false,
         avgCycleLength: 0,
         avgHaydLength: 0
     };
@@ -23,7 +22,6 @@
     const el = (id) => document.getElementById(id);
     let calDate = new Date();
 
-    // Data for Moods/Symptoms tags
     const TAGS = {
         moods: ['mood_happy', 'mood_calm', 'mood_tired', 'mood_irritable', 'mood_sad'],
         symptoms: ['sym_cramps', 'sym_headache', 'sym_bloating', 'sym_acne', 'sym_nausea']
@@ -40,7 +38,6 @@
         return d.toLocaleString(App.currentLang, {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'});
     }
 
-    // Helper: Get YYYY-MM-DD from Date object (Local time)
     function getIsoDate(dateObj) {
         const offset = dateObj.getTimezoneOffset();
         const local = new Date(dateObj.getTime() - (offset * 60 * 1000));
@@ -67,7 +64,7 @@
         CapApp.addListener('backButton', ({canGoBack}) => {
             if (App.modalOpen) {
                 if (!el("insightsModal").classList.contains("hidden")) window.closeInsights();
-                if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
+                else if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
             } else {
                 CapApp.exitApp();
             }
@@ -113,11 +110,23 @@
             descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
             return;
         }
+
+        // FIX: Use Calendar Days instead of 24h rolling window
         const now = new Date();
-        const diffMs = now - new Date(App.lastChanged);
-        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const lastDate = new Date(App.lastChanged);
+
+        // Reset hours to compare dates only
+        const todayZero = new Date(now);
+        todayZero.setHours(0, 0, 0, 0);
+        const lastZero = new Date(lastDate);
+        lastZero.setHours(0, 0, 0, 0);
+
+        // Difference in days (0 = Same day, 1 = Yesterday)
+        const days = Math.round((todayZero - lastZero) / (1000 * 60 * 60 * 24));
         const hour = now.getHours();
+
         if (App.status === "purity") {
+            // Only give "Ghusl" advice if it is the SAME calendar day (Day 0)
             if (days === 0) {
                 if (hour >= 4 && hour < 12) descText.innerText = S("msg_purity_day0_morning");
                 else if (hour >= 12 && hour < 17) descText.innerText = S("msg_purity_day0_afternoon");
@@ -180,6 +189,10 @@
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const now = new Date();
+        // Reset now to start of day for comparison
+        const todayMidnight = new Date(now);
+        todayMidnight.setHours(0, 0, 0, 0);
+
         const selDateKey = getIsoDate(App.selectedDate);
 
         // Prediction Window
@@ -198,7 +211,12 @@
 
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day, 12, 0, 0);
+            const checkDate = new Date(year, month, day); // Midnight for comparison
             const dateKey = getIsoDate(currentDayDate);
+
+            // FIX: Disable Future Dates
+            const isFuture = checkDate > todayMidnight;
+
             const hasTransition = App.history.some(e => {
                 const d = new Date(e.time);
                 return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
@@ -208,8 +226,9 @@
             if (predStart && currentDayDate >= predStart && currentDayDate <= predEnd && currentDayDate > now) isPredicted = true;
 
             let bgClass = "", textClass = "", borderClass = "";
+            let cursorClass = isFuture ? "cursor-default opacity-40" : "cursor-pointer";
+            let clickAttr = isFuture ? "" : `onclick="selectDate('${dateKey}')"`;
 
-            // Base Colors
             if (isPredicted) {
                 bgClass = "bg-transparent";
                 textClass = "text-slate-400 dark:text-slate-500 font-bold";
@@ -225,40 +244,29 @@
                 textClass = "text-amber-700 dark:text-amber-200 font-bold";
             }
 
-            // Selection & Today styling
             const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
-            const isSelected = dateKey === selDateKey;
+            const isSelected = dateKey === selDateKey && !isFuture;
 
-            if (isSelected) {
-                // Strong Outline for selection
-                borderClass = "ring-2 ring-slate-400 dark:ring-slate-500 z-20 scale-105";
-            }
-            if (isToday) {
-                // Amber ring for Today (Priority)
-                borderClass = "ring-2 ring-amber-500 font-black z-30 scale-110";
-            }
+            if (isSelected) borderClass = "ring-2 ring-slate-400 dark:ring-slate-500 z-20 scale-105";
+            if (isToday) borderClass = "ring-2 ring-amber-500 font-black z-30 scale-110";
 
-            // Log Dot (If logs exist for this day)
             let dot = "";
             if (App.dailyLogs[dateKey] && App.dailyLogs[dateKey].length > 0) {
                 dot = `<div class="absolute bottom-1 w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-400"></div>`;
             }
 
-            grid.innerHTML += `<div onclick="selectDate('${dateKey}')" class="relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all cursor-pointer ${bgClass} ${textClass} ${borderClass}">
+            grid.innerHTML += `<div ${clickAttr} class="relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${cursorClass} ${bgClass} ${textClass} ${borderClass}">
                 ${day} ${dot}
             </div>`;
         }
     }
 
-    // NEW: Handle Date Selection & Log Rendering
     window.selectDate = (dateStr) => {
         App.selectedDate = new Date(dateStr);
-        // Correct timezone offset issue when parsing string for display
         const offset = App.selectedDate.getTimezoneOffset();
         App.selectedDate = new Date(App.selectedDate.getTime() + (offset * 60 * 1000));
-
-        renderCalendar(); // Re-render to show selection ring
-        renderLogUI();    // Show options for this date
+        renderCalendar();
+        renderLogUI();
     };
 
     function renderLogUI() {
@@ -269,9 +277,15 @@
         if (!container) return;
 
         const dateKey = getIsoDate(App.selectedDate);
-        const activeLogs = App.dailyLogs[dateKey] || [];
 
-        // Show Container
+        // Hide log UI if future date selected (should not happen via click, but safe guard)
+        const todayKey = getIsoDate(new Date());
+        if (dateKey > todayKey) {
+            container.classList.add("hidden");
+            return;
+        }
+
+        const activeLogs = App.dailyLogs[dateKey] || [];
         container.classList.remove("hidden");
         dateText.innerText = App.selectedDate.toLocaleDateString(App.currentLang, {
             weekday: 'long',
@@ -279,40 +293,49 @@
             day: 'numeric'
         });
 
-        // Helper to create tag buttons
         const createTag = (key) => {
             const isActive = activeLogs.includes(key);
             const baseClass = "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border";
             const activeClass = "bg-rose-500 text-white border-rose-500 shadow-sm";
             const inactiveClass = "bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/10 hover:border-rose-300";
-
-            return `<button onclick="toggleLog('${key}')" class="${baseClass} ${isActive ? activeClass : inactiveClass}">
-                ${S(key)}
-            </button>`;
+            return `<button onclick="toggleLog('${key}')" class="${baseClass} ${isActive ? activeClass : inactiveClass}">${S(key)}</button>`;
         };
 
         moodsDiv.innerHTML = TAGS.moods.map(createTag).join('');
         symDiv.innerHTML = TAGS.symptoms.map(createTag).join('');
     }
 
+    // FIX: Exclusive Moods Logic
     window.toggleLog = (tagKey) => {
         const dateKey = getIsoDate(App.selectedDate);
         if (!App.dailyLogs[dateKey]) App.dailyLogs[dateKey] = [];
 
-        const idx = App.dailyLogs[dateKey].indexOf(tagKey);
-        if (idx > -1) {
-            App.dailyLogs[dateKey].splice(idx, 1); // Remove
+        const isMood = TAGS.moods.includes(tagKey);
+
+        if (isMood) {
+            // Check if this specific mood is already active
+            if (App.dailyLogs[dateKey].includes(tagKey)) {
+                // If yes, remove it (deselect)
+                const idx = App.dailyLogs[dateKey].indexOf(tagKey);
+                App.dailyLogs[dateKey].splice(idx, 1);
+            } else {
+                // If no, remove ALL other moods first (Radio behavior)
+                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => !TAGS.moods.includes(t));
+                // Then add the new one
+                App.dailyLogs[dateKey].push(tagKey);
+            }
         } else {
-            App.dailyLogs[dateKey].push(tagKey); // Add
+            // For Symptoms: Toggle normally (Checkbox behavior)
+            const idx = App.dailyLogs[dateKey].indexOf(tagKey);
+            if (idx > -1) App.dailyLogs[dateKey].splice(idx, 1);
+            else App.dailyLogs[dateKey].push(tagKey);
         }
 
-        // Cleanup empty arrays to save space
         if (App.dailyLogs[dateKey].length === 0) delete App.dailyLogs[dateKey];
-
         localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
 
         renderLogUI();
-        renderCalendar(); // To update the dot indicator
+        renderCalendar();
     };
 
     // ==========================================
@@ -324,7 +347,6 @@
         drawer.classList.remove("opacity-0", "translate-y-10");
         drawer.style.opacity = "1";
         let html = "";
-
         if (App.history.length === 0) {
             html = `<div class="text-center text-slate-400 text-xs py-4 italic">${S("no_history", "No history yet")}</div>`;
         } else {
@@ -335,10 +357,7 @@
                 return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span><span class="${textCol} font-bold text-slate-600">${label}</span></div><span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span></div>`;
             }).join('');
         }
-
-        html += `<div class="flex gap-2 mt-4"><button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button><button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button></div>
-        <div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4"><button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button><button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button><button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button></div>`;
-
+        html += `<div class="flex gap-2 mt-4"><button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button><button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button></div><div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4"><button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button><button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button><button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button></div>`;
         list.innerHTML = html;
         setTimeout(() => {
             if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
@@ -364,15 +383,12 @@
     // ==========================================
     window.openInsights = () => {
         el("insightsModal").classList.remove("hidden");
-        document.body.style.overflow = "hidden"; // Lock scroll
+        document.body.style.overflow = "hidden";
         App.modalOpen = true;
-
         const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
         if (scrollContainer) scrollContainer.scrollTop = 0;
         setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
-
-        // Reset selection to Today when opening
-        App.selectedDate = new Date();
+        App.selectedDate = new Date(); // Reset to today
         renderCalendar();
         renderLogUI();
         renderFullInsights();
@@ -382,7 +398,7 @@
         el("modalContent").classList.add("translate-y-full");
         setTimeout(() => {
             el("insightsModal").classList.add("hidden");
-            document.body.style.overflow = ""; // Unlock scroll
+            document.body.style.overflow = "";
             App.modalOpen = false;
         }, 500);
     };
@@ -412,7 +428,6 @@
         const handle = el("modalHandle");
         const content = el("modalContent");
         if (!handle || !content) return;
-
         let startY = 0, currentY = 0, isDragging = false;
         handle.addEventListener("touchstart", (e) => {
             startY = e.touches[0].clientY;
@@ -446,7 +461,6 @@
     // 7. STATE & ACTIONS
     // ==========================================
     function saveState() {
-        App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         localStorage.setItem("tahara_status", App.status);
         localStorage.setItem("tahara_history", JSON.stringify(App.history));
         localStorage.setItem("tahara_last_changed", App.lastChanged);
@@ -456,6 +470,7 @@
         App.status = App.status === "purity" ? "hayd" : "purity";
         App.lastChanged = new Date().toISOString();
         App.history.unshift({status: App.status, time: App.lastChanged});
+        App.history.sort((a, b) => new Date(b.time) - new Date(a.time)); // Ensure sort after add
         saveState();
         updateStatusUI();
         renderHistory();
@@ -666,31 +681,70 @@
         }
     }
 
+    // 1. NEW: SEO Updater Function
+    function updateSEO() {
+        // Update Title
+        document.title = S("app_title");
+
+        // Update Description
+        const descMeta = document.querySelector('meta[name="description"]');
+        if (descMeta) descMeta.setAttribute("content", S("app_desc"));
+
+        // Update Keywords
+        const keysMeta = document.querySelector('meta[name="keywords"]');
+        if (keysMeta) keysMeta.setAttribute("content", S("app_keywords"));
+
+        // Update HTML Lang/Dir attributes
+        document.documentElement.lang = App.currentLang;
+        document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
+    }
+
     async function init() {
         try {
             const res = await fetch("strings.json");
             const raw = await res.json();
             App.uiStrings = raw[App.currentLang] || raw['en'];
-            App.defaultStrings = raw['en']; // Load default for fallback
+            App.defaultStrings = raw['en'];
         } catch (e) {
         }
 
+        // 2. NEW: Check URL for language param (e.g. tahara.app/?lang=fr)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlLang = urlParams.get('lang');
+        if (urlLang && ['en', 'ar', 'fr', 'es', 'it'].includes(urlLang)) {
+            App.currentLang = urlLang;
+            localStorage.setItem("tahara_userLang", urlLang);
+            // Reload strings for the new language immediately
+            try {
+                const res = await fetch("strings.json");
+                const raw = await res.json();
+                App.uiStrings = raw[App.currentLang] || raw['en'];
+            } catch (e) {
+            }
+        }
+
+        // Apply Direction & Theme
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
         document.documentElement.lang = App.currentLang;
         document.body.classList.toggle("dark", App.isDark);
+
         const langSel = el("langSelect");
         if (langSel) langSel.value = App.currentLang;
+
+        // Translate UI
         document.querySelectorAll("[data-i18n]").forEach(node => {
             const key = node.getAttribute("data-i18n");
             if (S(key)) node.innerText = S(key);
         });
 
-        // Setup Contact Link (Android Safe Mode)
+        // 3. NEW: Trigger SEO Update
+        updateSEO();
+
         const contactBtn = el("contactBtn");
         if (contactBtn) {
             const email = S("contact_email");
             const mailtoUrl = `mailto:${email}`;
-            contactBtn.href = mailtoUrl; // Fallback for browser
+            contactBtn.href = mailtoUrl;
             contactBtn.onclick = (e) => {
                 if (typeof Capacitor !== 'undefined') {
                     e.preventDefault();
@@ -704,7 +758,6 @@
         updateLiveCounter();
         setInterval(updateLiveCounter, 1000);
         checkVersion();
-
         el("mainActionBtn").onclick = toggleStatus;
         el("themeToggle").onclick = () => {
             App.isDark = !App.isDark;
@@ -714,7 +767,12 @@
         };
         if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
         if (langSel) langSel.onchange = (e) => {
-            localStorage.setItem("tahara_userLang", e.target.value);
+            const newLang = e.target.value;
+            localStorage.setItem("tahara_userLang", newLang);
+            // Update URL without reloading page (optional, but good for sharing)
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('lang', newLang);
+            window.history.pushState({}, '', newUrl);
             location.reload();
         };
 
