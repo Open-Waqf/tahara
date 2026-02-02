@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#fff1f2">
+    <title>Tahara - Islamic Purity & Salah Tracker | طهارة</title>
+    <meta name="description"
+          content="A private, offline-first Islamic Purity tracker. Manage your states of Hayd and Tuhr with certainty. No ads, no tracking, 100% private.">
+    <meta name="keywords"
+          content="Tahara, Islamic Purity, Salah Tracker, Hayd, Tuhr, Ghusl, Fiqh, Muslim App, Private, Offline, طهارة, حيض, طهر">
+    <meta property="og:title" content="Tahara: Private Islamic Purity Tracker">
+    <meta property="og:description"
+          content="Track your purity states and Salah eligibility with total privacy. 100% Free & Open Source.">
+    <meta property="og:image" content="https://tahara.open-waqf.org/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://tahara.open-waqf.org/">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tahara - Purity Tracker">
+    <meta name="twitter:description" content="Manage Purity & Prayer states privately. No data collection.">
+    <meta name="twitter:image" content="https://tahara.open-waqf.org/img/og-image.jpg">
+    <link rel="icon" type="image/png" href="./img/favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/svg+xml" href="./img/favicon.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="./img/apple-touch-icon.png">
+    <link rel="manifest" href="./manifest.json">
+    <script src="./tailwind.3.4.17.js"></script>
+    <script>
+        tailwind.config = {darkMode: 'class'}
+    </script>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body class="transition-colors duration-300">
+<nav class="px-6 pb-6 pt-[calc(1.5rem+env(safe-area-inset-top))] flex justify-between items-center">
+    <h1 class="text-2xl font-serif italic text-rose-400">طهارة</h1>
+    <div class="flex items-center gap-4">
+        <select id="langSelect"
+                class="text-[10px] bg-transparent font-bold uppercase tracking-tighter outline-none cursor-pointer text-rose-400 dark:text-rose-200">
+            <option value="ar" class="bg-white dark:bg-slate-900">AR</option>
+            <option value="en" class="bg-white dark:bg-slate-900">EN</option>
+            <option value="fr" class="bg-white dark:bg-slate-900">FR</option>
+            <option value="es" class="bg-white dark:bg-slate-900">ES</option>
+            <option value="it" class="bg-white dark:bg-slate-900">IT</option>
+        </select>
+        <button id="fastingBtn"
+                class="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-500 flex items-center justify-center text-xs relative">
+            ☪️
+            <span id="debtDot"
+                  class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#1a1617]"></span>
+        </button>
+        <button id="themeToggle"
+                class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center text-xs">
+            🌙
+        </button>
+    </div>
+</nav>
+
+<main class="flex-grow flex flex-col items-center justify-center p-6 text-center">
+    <div class="status-orb animate-fade-in">
+        <span class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-2 font-bold" data-i18n="current_status">Today</span>
+        <div id="current-state-text" class="text-3xl font-black text-rose-500">Purity</div>
+        <div id="time-elapsed" class="mt-4 text-[11px] text-rose-400 font-medium tracking-wide">0d 0h 0m 0s</div>
+    </div>
+    <p class="max-w-xs text-sm text-slate-400 mt-8 mb-12" data-i18n="status_desc">
+        You are eligible for Prayer and Fasting.
+    </p>
+    <button class="action-btn" id="mainActionBtn">Mark Flow Started</button>
+    <div id="history-drawer"
+         class="w-full max-w-xs mt-12 overflow-hidden transition-all duration-500 opacity-0 transform translate-y-10 pb-24">
+        <h3 class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-4 font-bold" data-i18n="recent_history">
+            Recent Activity</h3>
+        <div id="history-list" class="space-y-3"></div>
+        <div class="mt-4 flex flex-col items-center gap-2">
+            <a id="contactBtn" href="#"
+               class="text-[10px] text-rose-400 font-bold hover:text-rose-600 border-b border-rose-200 pb-0.5 transition-colors"
+               data-i18n="contact_label">Contact Support</a>
+            <div id="appVersion" class="text-[9px] text-rose-200 font-mono opacity-50"></div>
+        </div>
+    </div>
+</main>
+
+<div id="insightsModal" class="fixed inset-0 z-[10000] hidden flex items-end">
+    <div class="absolute inset-0 bg-rose-900/30 backdrop-blur-sm" onclick="closeInsights()"></div>
+    <div class="relative w-full bg-white dark:bg-[#1a1617] rounded-t-[2.5rem] shadow-2xl transition-transform duration-500 transform translate-y-full flex flex-col max-h-[90vh]"
+         id="modalContent">
+        <div id="modalHandle" class="w-full pt-4 pb-2 shrink-0 flex justify-center cursor-pointer touch-none"
+             onclick="closeInsights()">
+            <div class="w-12 h-1.5 bg-rose-100 dark:bg-rose-900/40 rounded-full"></div>
+        </div>
+        <div class="overflow-y-auto px-6 pb-8 pt-2 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+            <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="full_insights">Full
+                Insights</h2>
+
+            <div class="grid grid-cols-2 gap-3 mb-3">
+                <div class="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-3xl text-center border border-rose-100 dark:border-rose-900/20">
+                    <span class="block text-[10px] uppercase tracking-widest text-rose-400 mb-1" data-i18n="avg_cycle">Avg. Cycle</span>
+                    <span id="avgCycleText" class="text-lg font-bold text-rose-500">--</span>
+                </div>
+                <div class="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-3xl text-center border border-amber-100 dark:border-amber-900/20">
+                    <span class="block text-[10px] uppercase tracking-widest text-amber-400 mb-1"
+                          data-i18n="avg_purity">Avg. Purity</span>
+                    <span id="avgPurityText" class="text-lg font-bold text-amber-600">--</span>
+                </div>
+            </div>
+
+            <div class="mb-6 bg-slate-50 dark:bg-white/5 p-4 rounded-3xl text-center border border-slate-100 dark:border-white/5">
+                <span class="block text-[10px] uppercase tracking-widest text-slate-400 mb-1" data-i18n="next_period">Next Expected</span>
+                <span id="nextPeriodText" class="text-lg font-bold text-slate-600 dark:text-slate-200">--</span>
+            </div>
+
+            <div id="calendar-container"
+                 class="mb-6 bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/5">
+                <div class="flex justify-between items-center mb-4 px-2">
+                    <button onclick="changeMonth(-1)" class="text-rose-400 font-bold p-2">❮</button>
+                    <span id="calMonthYear"
+                          class="text-sm font-bold text-slate-600 dark:text-rose-100 uppercase tracking-widest">--</span>
+                    <button onclick="changeMonth(1)" class="text-rose-400 font-bold p-2">❯</button>
+                </div>
+                <div id="calendarLegend"
+                     class="flex justify-center gap-4 mb-4 text-[9px] uppercase tracking-wider"></div>
+                <div id="calendarWeekdays" class="grid grid-cols-7 mb-2 text-center"></div>
+                <div id="calendarDays" class="grid grid-cols-7 gap-1 text-center"></div>
+            </div>
+
+            <div id="dailyLogContainer" class="mb-8 hidden animate-fade-in">
+                <div class="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-white/10 pb-2">
+                    <span class="text-xs uppercase tracking-widest text-slate-400 font-bold" data-i18n="log_title">Daily Log</span>
+                    <span id="selectedDateText" class="text-xs font-mono text-rose-400"></span>
+                </div>
+
+                <p class="text-[10px] uppercase text-slate-300 font-bold mb-2 tracking-wider" data-i18n="cat_mood">
+                    Mood</p>
+                <div id="moodOptions" class="flex flex-wrap gap-2 mb-6"></div>
+
+                <p class="text-[10px] uppercase text-slate-300 font-bold mb-2 tracking-wider" data-i18n="cat_symptoms">
+                    Symptoms</p>
+                <div id="symptomOptions" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <div id="fullHistoryList" class="space-y-4"></div>
+
+            <button onclick="closeInsights()"
+                    class="w-full mt-8 py-4 bg-rose-50 dark:bg-rose-900/20 text-rose-500 font-bold rounded-full text-sm uppercase tracking-widest"
+                    data-i18n="btn_close">Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="fastingModal" class="fixed inset-0 z-[10000] hidden flex items-center justify-center">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeFasting()"></div>
+    <div class="relative w-[90%] max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl transform scale-95 opacity-0 transition-all duration-300"
+         id="fastingContent">
+        <h2 class="text-xl font-serif italic text-amber-500 mb-2 text-center" data-i18n="fasting_title">Fasting
+            Tracker</h2>
+        <p class="text-[10px] text-center text-slate-400 mb-6 uppercase tracking-widest" data-i18n="fasting_subtitle">
+            Missed vs Made Up</p>
+        <div class="flex flex-col items-center justify-center mb-8">
+            <span class="text-[10px] uppercase tracking-widest text-slate-400 mb-2" data-i18n="days_remaining">Remaining Debt</span>
+            <div class="text-6xl font-black text-slate-700 dark:text-slate-200" id="debtDisplay">0</div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-2xl text-center border border-rose-100 dark:border-rose-900/20">
+                <span class="block text-[9px] uppercase font-bold text-rose-400 mb-2"
+                      data-i18n="missed_fast">Missed</span>
+                <div class="flex items-center justify-center gap-3">
+                    <button onclick="updateDebt(1)"
+                            class="w-8 h-8 bg-white dark:bg-white/10 text-rose-500 rounded-full shadow-sm font-bold text-lg">
+                        +
+                    </button>
+                    <span id="totalMissed" class="text-lg font-bold text-rose-500">0</span>
+                    <button onclick="updateDebt(-1)"
+                            class="w-8 h-8 bg-white dark:bg-white/10 text-rose-300 rounded-full shadow-sm font-bold text-lg">
+                        -
+                    </button>
+                </div>
+            </div>
+            <div class="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-2xl text-center border border-emerald-100 dark:border-emerald-900/20">
+                <span class="block text-[9px] uppercase font-bold text-emerald-500 mb-2" data-i18n="made_up_fast">Made Up</span>
+                <div class="flex items-center justify-center gap-3">
+                    <button onclick="updatePaid(1)"
+                            class="w-8 h-8 bg-white dark:bg-white/10 text-emerald-500 rounded-full shadow-sm font-bold text-lg">
+                        +
+                    </button>
+                    <span id="totalPaid" class="text-lg font-bold text-emerald-600">0</span>
+                    <button onclick="updatePaid(-1)"
+                            class="w-8 h-8 bg-white dark:bg-white/10 text-emerald-300 rounded-full shadow-sm font-bold text-lg">
+                        -
+                    </button>
+                </div>
+            </div>
+        </div>
+        <button onclick="closeFasting()"
+                class="w-full py-3 bg-slate-100 dark:bg-white/5 text-slate-500 font-bold rounded-full text-xs uppercase tracking-widest">
+            <span data-i18n="btn_close">Close</span></button>
+    </div>
+</div>
+
+<div id="installBanner"
+     class="fixed bottom-4 left-4 right-4 bg-white dark:bg-[#2d2426] p-4 rounded-2xl shadow-2xl z-[9000] hidden transform translate-y-20 transition-all duration-500 border border-slate-100 dark:border-white/5">
+    <div class="flex items-start gap-4">
+        <div class="w-10 h-10 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center text-xl shrink-0">
+            📱
+        </div>
+        <div class="flex-1">
+            <h3 class="font-bold text-slate-700 dark:text-slate-200 text-sm mb-1" data-i18n="install_title">Install
+                App</h3>
+            <p id="iosInstallText" class="text-xs text-slate-500 dark:text-slate-400 hidden leading-relaxed"></p>
+            <button id="androidInstallBtn"
+                    class="hidden mt-2 px-4 py-2 bg-rose-500 text-white text-xs font-bold rounded-full shadow-lg shadow-rose-500/30 w-full"
+                    data-i18n="install_android_btn">Install Tahara
+            </button>
+        </div>
+        <button onclick="dismissInstall()" class="text-slate-300 hover:text-slate-500 p-1">✕</button>
+    </div>
+</div>
+
+<script type="module" src="./script.js"></script>
+<script type="application/ld+json">{
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Tahara",
+    "applicationCategory": "HealthApplication",
+    "operatingSystem": "Android, iOS, Web",
+    "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+    },
+    "description": "An open-source, privacy-focused application for tracking Islamic purity states and Salah eligibility.",
+    "author": {
+        "@type": "Organization",
+        "name": "Open Waqf"
+    }
+}</script>
+</body>
+</html>
