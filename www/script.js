@@ -786,40 +786,50 @@
    ========================================= */
 
     // 1. Define the function
+// 1. Define the function
     function initServiceWorker() {
         if (!("serviceWorker" in navigator)) return;
 
-        // Skip for Native App (Capacitor/Android Wrapper) to avoid conflicts
+        // Skip for Native App
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             return;
         }
 
-        let refreshing = false;
+        // Register immediately (Don't wait for "load" event, we are already loaded)
+        navigator.serviceWorker
+            .register("sw.js")
+            .then((reg) => {
+                console.log("✅ Service Worker Registered!", reg);
 
-        // Listen for the "New Content Available" event
+                // Handler for "Skip Waiting"
+                if (reg.waiting) {
+                    reg.waiting.postMessage({type: 'SKIP_WAITING'});
+                }
+
+                // Listen for updates
+                reg.addEventListener("updatefound", () => {
+                    const newWorker = reg.installing;
+                    newWorker.addEventListener("statechange", () => {
+                        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                            console.log("🔄 New version available!");
+                            window.location.reload();
+                        }
+                    });
+                });
+            })
+            .catch((err) => console.error("❌ SW Registration Failed:", err));
+
+        // Refresher logic
+        let refreshing = false;
         navigator.serviceWorker.addEventListener("controllerchange", () => {
             if (!refreshing) {
                 refreshing = true;
-                console.log("🔄 New version detected. Refreshing...");
                 window.location.reload();
             }
         });
-
-        window.addEventListener("load", () => {
-            // Register the SW file
-            navigator.serviceWorker
-                .register("sw.js?v=" + new Date().getTime()) // Timestamp forces check for updates
-                .then((reg) => {
-                    // Check if there's an update waiting
-                    if (reg.waiting) {
-                        reg.waiting.postMessage({type: 'SKIP_WAITING'});
-                    }
-                })
-                .catch((err) => console.error("❌ SW Error:", err));
-        });
     }
 
-    // 2. CRITICAL: Actually CALL the function to start it!
+    // 2. Call it immediately
     initServiceWorker();
 
     window.onload = init;
