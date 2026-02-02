@@ -51,12 +51,16 @@ states (Hayd/Tuhr) and determine Salah/Fasting eligibility with certainty.
 * Your health data is stored only in your browser's `LocalStorage`.
 * If you clear your browser cache, you lose your data (unless you use the **Backup** feature).
 
-## 📄 License
+### ✅ You Are Free To:
 
-This project is open-source under the **MIT License**.
+* **Use** this software for personal or community purposes.
+* **Modify** the source code.
+* **Distribute** your own versions (forks), even if you keep the source code closed.
 
-* Built by **Open Waqf**.
-* Free forever. No ads. No premium tier.
+### ❌ You May NOT:
 
----
-*Made with ❤️ for the Ummah.*
+* **Sell** this software or any derivative works.
+* **Place Advertisements** inside the app.
+* **Use** this software for any commercial business purpose.
+
+*Built with ❤️ for the Ummah.*
