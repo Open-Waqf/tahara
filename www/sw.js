@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tahara-v0.32';
+const CACHE_NAME = 'tahara-v0.33';
 const ASSETS = [
     "./",
     "./index.html",
@@ -51,15 +51,15 @@ self.addEventListener("fetch", (event) => {
     if (req.mode === "navigate" || url.pathname.endsWith("index.html")) {
         event.respondWith((async () => {
             try {
-                // Try network first
+                // A. Try network first (to get new version if online)
                 const networkResponse = await fetch(req);
                 const cache = await caches.open(CACHE_NAME);
                 cache.put(req, networkResponse.clone());
                 return networkResponse;
             } catch (error) {
-                // Fallback to cache if offline
-                const cachedResponse = await caches.match(req);
-                return cachedResponse || Response.error();
+                // B. Fallback to cache if offline
+                const cache = await caches.open(CACHE_NAME);
+                return await cache.match("./index.html");
             }
         })());
         return;
