@@ -781,5 +781,46 @@
         setTimeout(checkInstall, 3000);
     }
 
+    /* =========================================
+   SERVICE WORKER SETUP (Updates & Offline)
+   ========================================= */
+
+    // 1. Define the function
+    function initServiceWorker() {
+        if (!("serviceWorker" in navigator)) return;
+
+        // Skip for Native App (Capacitor/Android Wrapper) to avoid conflicts
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            return;
+        }
+
+        let refreshing = false;
+
+        // Listen for the "New Content Available" event
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (!refreshing) {
+                refreshing = true;
+                console.log("🔄 New version detected. Refreshing...");
+                window.location.reload();
+            }
+        });
+
+        window.addEventListener("load", () => {
+            // Register the SW file
+            navigator.serviceWorker
+                .register("sw.js?v=" + new Date().getTime()) // Timestamp forces check for updates
+                .then((reg) => {
+                    // Check if there's an update waiting
+                    if (reg.waiting) {
+                        reg.waiting.postMessage({type: 'SKIP_WAITING'});
+                    }
+                })
+                .catch((err) => console.error("❌ SW Error:", err));
+        });
+    }
+
+    // 2. CRITICAL: Actually CALL the function to start it!
+    initServiceWorker();
+
     window.onload = init;
 })();
