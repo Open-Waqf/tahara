@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* Force Tailwind to use the .dark class instead of system settings */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+    body {
+        /* Sets the default light background */
+        @apply bg-rose-50/30 text-slate-700 transition-colors duration-300;
+    }
+
+    body.dark {
+        /* Sets the default dark background */
+        @apply bg-[#1a1617] text-rose-100;
+    }
+
+    body.dark.oled {
+        @apply bg-black;
+    }
+}
