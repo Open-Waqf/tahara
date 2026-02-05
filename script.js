@@ -105,11 +105,10 @@
         }
         const now = new Date;
         const lastDate = new Date(App.lastChanged);
-        const todayZero = new Date(now);
-        todayZero.setHours(0, 0, 0, 0);
-        const lastZero = new Date(lastDate);
-        lastZero.setHours(0, 0, 0, 0);
-        const days = Math.round((todayZero - lastZero) / (1e3 * 60 * 60 * 24));
+        const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+        const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+        const _MS_PER_DAY = 1e3 * 60 * 60 * 24;
+        const days = Math.floor((utc1 - utc2) / _MS_PER_DAY);
         const hour = now.getHours();
         if (App.status === "purity") {
             if (days === 0) {
