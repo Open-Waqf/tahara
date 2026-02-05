@@ -1,10 +1,10 @@
-const CACHE_NAME = 'tahara-v0.5';
+const CACHE_NAME = 'tahara-v0.6';
 const ASSETS = [
     "./",
     "./index.html",
     "./style.css",
     "./script.js",
-    "./tailwind.3.4.17.js",
+    "./compiled.css",
     "./strings.json",
     "manifest.json",
     "./fonts/amiri-v30-arabic_latin-700.woff2",
