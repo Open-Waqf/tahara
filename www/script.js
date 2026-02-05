@@ -63,8 +63,7 @@
         }
         CapApp.addListener('backButton', ({canGoBack}) => {
             if (App.modalOpen) {
-                if (!el("insightsModal").classList.contains("hidden")) window.closeInsights();
-                else if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
+                if (!el("insightsModal").classList.contains("hidden")) window.closeInsights(); else if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
             } else {
                 CapApp.exitApp();
             }
@@ -96,9 +95,7 @@
         const lastStart = haydStarts[0];
         const nextStart = new Date(lastStart.getTime() + App.avgCycleLength);
         if (el("nextPeriodText")) el("nextPeriodText").innerText = nextStart.toLocaleDateString(App.currentLang, {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric'
+            weekday: 'short', month: 'short', day: 'numeric'
         });
     }
 
@@ -111,32 +108,31 @@
             return;
         }
 
-        // FIX: Use Calendar Days instead of 24h rolling window
+        // FIX: Timezone-Safe Day Calculation (UTC Midnight to UTC Midnight)
         const now = new Date();
         const lastDate = new Date(App.lastChanged);
 
-        // Reset hours to compare dates only
-        const todayZero = new Date(now);
-        todayZero.setHours(0, 0, 0, 0);
-        const lastZero = new Date(lastDate);
-        lastZero.setHours(0, 0, 0, 0);
+        const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+        const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+        const _MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-        // Difference in days (0 = Same day, 1 = Yesterday)
-        const days = Math.round((todayZero - lastZero) / (1000 * 60 * 60 * 24));
+        // precise diff in days
+        const days = Math.floor((utc1 - utc2) / _MS_PER_DAY);
+
+        // Get local hour for morning/evening logic
         const hour = now.getHours();
 
         if (App.status === "purity") {
             // Only give "Ghusl" advice if it is the SAME calendar day (Day 0)
             if (days === 0) {
-                if (hour >= 4 && hour < 12) descText.innerText = S("msg_purity_day0_morning");
-                else if (hour >= 12 && hour < 17) descText.innerText = S("msg_purity_day0_afternoon");
-                else descText.innerText = S("msg_purity_day0_evening");
+                if (hour >= 4 && hour < 12) descText.innerText = S("msg_purity_day0_morning"); else if (hour >= 12 && hour < 17) descText.innerText = S("msg_purity_day0_afternoon"); else descText.innerText = S("msg_purity_day0_evening");
                 descText.classList.add("text-amber-600", "font-bold");
             } else {
                 descText.innerText = S("msg_purity_general");
                 descText.classList.remove("text-amber-600", "font-bold");
             }
         } else {
+            // Fiqh Logic: 15 days (Shafi'i) or 10 days (Hanafi) max for Hayd
             if (days >= 15) {
                 descText.innerText = S("msg_hayd_warning_shafi");
                 descText.classList.add("text-rose-600", "font-bold");
@@ -288,9 +284,7 @@
         const activeLogs = App.dailyLogs[dateKey] || [];
         container.classList.remove("hidden");
         dateText.innerText = App.selectedDate.toLocaleDateString(App.currentLang, {
-            weekday: 'long',
-            month: 'short',
-            day: 'numeric'
+            weekday: 'long', month: 'short', day: 'numeric'
         });
 
         const createTag = (key) => {
@@ -327,8 +321,7 @@
         } else {
             // For Symptoms: Toggle normally (Checkbox behavior)
             const idx = App.dailyLogs[dateKey].indexOf(tagKey);
-            if (idx > -1) App.dailyLogs[dateKey].splice(idx, 1);
-            else App.dailyLogs[dateKey].push(tagKey);
+            if (idx > -1) App.dailyLogs[dateKey].splice(idx, 1); else App.dailyLogs[dateKey].push(tagKey);
         }
 
         if (App.dailyLogs[dateKey].length === 0) delete App.dailyLogs[dateKey];
