@@ -546,6 +546,7 @@
     }
     let deferredPrompt;
     function checkInstall() {
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) return;
         if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) return;
         const lastDismiss = localStorage.getItem("tahara_install_dismissed");
         if (lastDismiss && new Date - new Date(lastDismiss) < 7 * 24 * 60 * 60 * 1e3) return;
