@@ -23,6 +23,7 @@
     function S(key, fallback) {
         if (App.uiStrings[key]) return App.uiStrings[key];
         if (App.defaultStrings[key]) return App.defaultStrings[key];
+        if (App.globalStrings && App.globalStrings[key]) return App.globalStrings[key];
         return fallback || "";
     }
     function formatDateTime(isoString) {
@@ -610,6 +611,7 @@
         try {
             const res = await fetch("strings.json");
             const raw = await res.json();
+            App.globalStrings = raw["default"] || {};
             App.uiStrings = raw[App.currentLang] || raw["en"];
             App.defaultStrings = raw["en"];
         } catch (e) {}
@@ -652,12 +654,24 @@
         setInterval(updateLiveCounter, 1e3);
         checkVersion();
         el("mainActionBtn").onclick = toggleStatus;
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", App.isDark ? "#1a1617" : "#fff1f2");
         el("themeToggle").onclick = () => {
             App.isDark = !App.isDark;
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
+            document.querySelector('meta[name="theme-color"]').setAttribute("content", App.isDark ? "#1a1617" : "#fff1f2");
             initNativeFeatures();
         };
+        const playBtn = el("playStoreBtn");
+        if (playBtn) {
+            const platform = typeof Capacitor !== "undefined" ? Capacitor.getPlatform() : "web";
+            const isNative = typeof Capacitor !== "undefined" && Capacitor.isNativePlatform();
+            if (platform !== "ios") {
+                playBtn.classList.remove("hidden");
+                playBtn.href = S("play_store_url");
+                playBtn.innerText = isNative ? S("play_store_rate_label") : S("play_store_get_label");
+            }
+        }
         if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
         if (langSel) langSel.onchange = e => {
             const newLang = e.target.value;

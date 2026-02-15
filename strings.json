@@ -2,7 +2,8 @@
   "default": {
     "app_name": "طهارة",
     "contact_email": "contact@open-waqf.org",
-    "website": "https://tahara.open-waqf.org/"
+    "website": "https://tahara.open-waqf.org/",
+    "play_store_url": "https://play.google.com/store/apps/details?id=org.openwaqf.tahara"
   },
   "en": {
     "app_title": "Tahara - Islamic Purity & Salah Tracker",
@@ -67,7 +68,10 @@
     "sym_headache": "Headache",
     "sym_bloating": "Bloating",
     "sym_acne": "Acne",
-    "sym_nausea": "Nausea"
+    "sym_nausea": "Nausea",
+    "play_store_label": "Rate on Play Store",
+    "play_store_rate_label": "Rate on Play Store",
+    "play_store_get_label": "Get it on Google Play"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -132,7 +136,10 @@
     "sym_headache": "صداع",
     "sym_bloating": "انتفاخ",
     "sym_acne": "حبوب",
-    "sym_nausea": "غثيان"
+    "sym_nausea": "غثيان",
+    "play_store_label": "قيمنا على متجر بلاي",
+    "play_store_rate_label": "قيمنا على متجر بلاي",
+    "play_store_get_label": "احصلي عليه من متجر بلاي"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -197,7 +204,10 @@
     "sym_headache": "Maux de tête",
     "sym_bloating": "Ballonnement",
     "sym_acne": "Acné",
-    "sym_nausea": "Nausée"
+    "sym_nausea": "Nausée",
+    "play_store_label": "Noter sur le Play Store",
+    "play_store_rate_label": "Noter sur le Play Store",
+    "play_store_get_label": "Disponible sur Google Play"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -262,7 +272,10 @@
     "sym_headache": "Dolor cabeza",
     "sym_bloating": "Hinchazón",
     "sym_acne": "Acné",
-    "sym_nausea": "Náuseas"
+    "sym_nausea": "Náuseas",
+    "play_store_label": "Valorar en Play Store",
+    "play_store_rate_label": "Valorar en Play Store",
+    "play_store_get_label": "Disponible en Google Play"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -327,6 +340,9 @@
     "sym_headache": "Mal di testa",
     "sym_bloating": "Gonfiore",
     "sym_acne": "Acne",
-    "sym_nausea": "Nausea"
+    "sym_nausea": "Nausea",
+    "play_store_label": "Valuta su Play Store",
+    "play_store_rate_label": "Valuta su Play Store",
+    "play_store_get_label": "Disponibile su Google Play"
   }
 }
