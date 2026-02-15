@@ -17,9 +17,6 @@ nav {
     position: sticky;
     top: 0;
     z-index: 50;
-    /* Prevent jitter during fast scrolling */
-    will-change: transform;
-    transform: translateZ(0);
 }
 
 body {
@@ -30,7 +27,11 @@ body {
     overflow-x: hidden;
     padding-bottom: env(safe-area-inset-bottom);
     overscroll-behavior-y: none;
+}
+
+main {
     transform: translateZ(0);
+    will-change: transform;
 }
 
 /* VISIBLE DROPDOWN FIX */
