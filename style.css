@@ -12,9 +12,7 @@
 nav {
   position: sticky;
   top: 0;
-  z-index: 50;
-  will-change: transform;
-  transform: translateZ(0)
+  z-index: 50
 }
 body {
   font-family: 'Segoe UI',system-ui,sans-serif;
@@ -23,8 +21,11 @@ body {
   transition: background .3s ease;
   overflow-x: hidden;
   padding-bottom: env(safe-area-inset-bottom);
-  overscroll-behavior-y: none;
-  transform: translateZ(0)
+  overscroll-behavior-y: none
+}
+main {
+  transform: translateZ(0);
+  will-change: transform
 }
 #langSelect {
   appearance: none;
