@@ -55,10 +55,10 @@
 
     // Accessibility: Announce to screen readers
     window.announce = (msg) => {
-        const el = el("sr-announcer");
-        if (el) {
-            el.innerText = ""; // Clear
-            setTimeout(() => el.innerText = msg, 50); // Force re-read
+        const announcerNode = el("sr-announcer");
+        if (announcerNode) {
+            announcerNode.innerText = ""; // Clear
+            setTimeout(() => announcerNode.innerText = msg, 50); // Force re-read
         }
     };
 
@@ -659,6 +659,17 @@
         renderFullInsights();
         showToast("toast_status_saved", "success", "Status updated");
         updateLiveCounter();
+        const historyTabBtn = document.querySelector('[data-tab="history"]');
+        if (historyTabBtn) {
+            historyTabBtn.classList.add('animate-bounce', 'text-rose-500');
+            setTimeout(() => {
+                // Only remove the rose color if we aren't currently ON the history tab
+                historyTabBtn.classList.remove('animate-bounce');
+                if (!document.getElementById('view-history').classList.contains('hidden') === false) {
+                    historyTabBtn.classList.remove('text-rose-500');
+                }
+            }, 1000);
+        }
     }
 
     function updateStatusUI() {
@@ -690,6 +701,18 @@
             if (orb) orb.classList.add("status-hayd-pulse");
         }
         updateFastingUI();
+
+        const lastLogContainer = el("last-logged-info");
+        const lastLogTime = el("last-logged-time");
+        if (lastLogContainer && lastLogTime) {
+            if (App.history.length > 0) {
+                lastLogContainer.classList.remove("hidden");
+                // formatDateTime is already available in your helpers!
+                lastLogTime.innerText = formatDateTime(App.history[0].time);
+            } else {
+                lastLogContainer.classList.add("hidden");
+            }
+        }
     }
 
     function saveFasting() {

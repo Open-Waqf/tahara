@@ -129,7 +129,8 @@
     "toast_backup_success": "Backup saved successfully",
     "tab_fasting": "Fasting",
     "update_available": "Update available!",
-    "btn_refresh": "Refresh"
+    "btn_refresh": "Refresh",
+    "last_logged": "Last logged:"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -256,7 +257,8 @@
     "toast_backup_success": "تم حفظ النسخة الاحتياطية بنجاح",
     "tab_fasting": "الصيام",
     "update_available": "تحديث متاح!",
-    "btn_refresh": "تحديث"
+    "btn_refresh": "تحديث",
+    "last_logged": "آخر تسجيل:"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -383,7 +385,8 @@
     "toast_backup_success": "Sauvegarde effectuée avec succès",
     "tab_fasting": "Jeûne",
     "update_available": "Mise à jour disponible !",
-    "btn_refresh": "Actualiser"
+    "btn_refresh": "Actualiser",
+    "last_logged": "Dernier enregistrement :"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -510,7 +513,8 @@
     "toast_backup_success": "Copia de seguridad guardada con éxito",
     "tab_fasting": "Ayuno",
     "update_available": "¡Actualización disponible!",
-    "btn_refresh": "Actualizar"
+    "btn_refresh": "Actualizar",
+    "last_logged": "Último registro:"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -637,6 +641,7 @@
     "toast_backup_success": "Backup salvato con successo",
     "tab_fasting": "Digiuno",
     "update_available": "Aggiornamento disponibile!",
-    "btn_refresh": "Aggiorna"
+    "btn_refresh": "Aggiorna",
+    "last_logged": "Ultimo registro:"
   }
 }

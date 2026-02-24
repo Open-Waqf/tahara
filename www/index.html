@@ -63,11 +63,20 @@
             <div id="time-elapsed" class="mt-4 text-[11px] text-rose-400 font-medium tracking-wide">0d 0h 0m 0s</div>
         </div>
         <p class="max-w-xs text-sm text-center text-slate-400 mt-8 mb-12" data-i18n="status_desc">You are eligible for
-            Prayer and Fasting.</p>
+            Prayer and Fasting.
+        </p>
         <button class="action-btn" id="mainActionBtn">Mark Flow Started</button>
+
+        <div id="last-logged-info"
+             class="text-[10px] text-slate-400 mt-6 animate-fade-in hidden flex items-center gap-1.5">
+            <span data-i18n="last_logged">Last logged:</span>
+            <span id="last-logged-time" class="font-bold text-slate-500 dark:text-slate-300">--</span>
+        </div>
+
         <button id="undoBtn"
-                class="mt-8 px-5 py-3 text-xs text-slate-400 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500 hover:bg-rose-50 transition-all">
-            ↩ <span data-i18n="delete_title">Undo</span></button>
+                class="mt-4 px-5 py-3 text-xs text-slate-400 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500 hover:bg-rose-50 transition-all">
+            ↩ <span data-i18n="delete_title">Undo</span>
+        </button>
     </div>
 
     <div id="view-calendar" class="view-section hidden animate-fade-in">
