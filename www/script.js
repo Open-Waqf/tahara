@@ -19,6 +19,8 @@
         avgHaydLength: 0
     };
 
+    let pendingImportData = null;
+
     const el = (id) => document.getElementById(id);
     let calDate = new Date();
 
@@ -26,6 +28,38 @@
         moods: ['mood_happy', 'mood_calm', 'mood_tired', 'mood_irritable', 'mood_sad'],
         symptoms: ['sym_cramps', 'sym_headache', 'sym_bloating', 'sym_acne', 'sym_nausea']
     };
+
+    // ==========================================
+    // DATA SCHEMA & MIGRATIONS (A2)
+    // ==========================================
+    const CURRENT_SCHEMA_VERSION = 1;
+
+    function runDataMigrations() {
+        // If there's no version, but there IS history, the user is implicitly on v1.
+        // If there's no version and no history, it's a fresh install (also v1).
+        const hasExistingData = localStorage.getItem("tahara_history") !== null;
+        let userVersion = parseInt(localStorage.getItem("tahara_schema_version"));
+
+        if (isNaN(userVersion)) {
+            userVersion = hasExistingData ? 1 : CURRENT_SCHEMA_VERSION;
+        }
+
+        // --- MIGRATION STEPS GO HERE IN THE FUTURE ---
+        // Example for future:
+        // if (userVersion === 1) {
+        //     console.log("Migrating from v1 to v2...");
+        //     let history = JSON.parse(localStorage.getItem("tahara_history") || "[]");
+        //     // Transform history data here without deleting unknown fields
+        //     localStorage.setItem("tahara_history", JSON.stringify(history));
+        //     userVersion = 2;
+        // }
+
+        // Finalize: Ensure the schema version is saved
+        localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
+    }
+
+    // RUN MIGRATIONS BEFORE ANYTHING ELSE
+    runDataMigrations();
 
     function S(key, fallback) {
         if (App.uiStrings[key]) return App.uiStrings[key];
@@ -351,8 +385,38 @@
                 return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span><span class="${textCol} font-bold text-slate-600">${label}</span></div><span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span></div>`;
             }).join('');
         }
-        html += `<div class="flex gap-2 mt-4"><button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button><button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button></div><div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4"><button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button><button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button><button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button></div>`;
+        // --- NEW BACKUP REMINDER LOGIC ---
+        const lastBackupStr = localStorage.getItem("tahara_last_backup");
+        let needsBackup = false;
+        if (!lastBackupStr && App.history.length > 0) {
+            needsBackup = true;
+        } else if (lastBackupStr) {
+            const daysSinceBackup = (new Date() - new Date(lastBackupStr)) / (1000 * 60 * 60 * 24);
+            if (daysSinceBackup >= 30) needsBackup = true;
+        }
+
+        // Animated warning sign next to the button
+        const warningSign = needsBackup ? `
+            <span class="text-[10px] animate-pulse cursor-help" title="${S("backup_needed", "Backup Needed!")}">⚠️</span>
+        ` : "";
+
+        html += `
+        <div class="flex gap-2 mt-4">
+            <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button>
+            <button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4">
+            <div class="flex items-center justify-center gap-1">
+                <button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button>
+                ${warningSign}
+            </div>
+            <button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button>
+            <button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button>
+        </div>`;
+
         list.innerHTML = html;
+
         setTimeout(() => {
             if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
             if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
@@ -521,8 +585,9 @@
         }
     };
 
-    function exportData() {
+    async function exportData() {
         const data = {
+            schema_version: CURRENT_SCHEMA_VERSION, // Added schema version
             tahara_status: App.status,
             tahara_last_changed: App.lastChanged,
             tahara_history: App.history,
@@ -530,13 +595,41 @@
             tahara_logs: App.dailyLogs,
             export_date: new Date().toISOString()
         };
-        const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+
+        const jsonStr = JSON.stringify(data, null, 2);
+        const fileName = `tahara-backup-${new Date().toISOString().split('T')[0]}.json`;
+
+        // Mobile / Capacitor flow (Web Share API)
+        if (navigator.share && navigator.canShare) {
+            try {
+                const file = new File([jsonStr], fileName, {type: "application/json"});
+                if (navigator.canShare({files: [file]})) {
+                    await navigator.share({
+                        title: S("app_title", "Tahara Backup"),
+                        text: "My Tahara App Data Backup",
+                        files: [file]
+                    });
+                    return; // Stop here if share was successful
+                }
+            } catch (err) {
+                console.log("Sharing failed or cancelled", err);
+            }
+        }
+
+        // Fallback: Standard Web Download
+        const blob = new Blob([jsonStr], {type: "application/json"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `tahara-backup-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = fileName;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        // Save the backup date to clear the reminder
+        localStorage.setItem("tahara_last_backup", new Date().toISOString());
+        // Re-render history to hide the reminder dot immediately
+        renderHistory();
     }
 
     function importData() {
@@ -550,26 +643,97 @@
             reader.onload = (event) => {
                 try {
                     const data = JSON.parse(event.target.result);
-                    if (!data.tahara_history) throw new Error("Invalid file");
-                    if (confirm(S("import_confirm", "Overwrite current data?"))) {
-                        App.status = data.tahara_status;
-                        App.lastChanged = data.tahara_last_changed;
-                        App.history = data.tahara_history;
-                        App.fasting = data.tahara_fasting || {missed: 0, paid: 0};
-                        App.dailyLogs = data.tahara_logs || {};
-                        saveState();
-                        saveFasting();
-                        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
-                        location.reload();
-                    }
+
+                    // STRICT VALIDATION
+                    if (!data.tahara_history || !Array.isArray(data.tahara_history)) throw new Error("Missing/Invalid history");
+                    if (!data.tahara_status) throw new Error("Missing status");
+
+                    // Hold in memory
+                    pendingImportData = data;
+
+                    // Render preview in UI
+                    showRestorePreview(data);
                 } catch (err) {
-                    alert(S("import_error", "Error: Invalid backup file."));
+                    alert(S("import_error", "Error: Invalid backup file. The data is corrupted or unsupported."));
+                    pendingImportData = null;
                 }
             };
             reader.readAsText(file);
         };
         input.click();
     }
+
+    function showRestorePreview(data) {
+        const historyCount = data.tahara_history.length;
+        const logCount = Object.keys(data.tahara_logs || {}).length;
+        const date = data.export_date ? formatDateTime(data.export_date) : S("unknown_date", "Unknown Date");
+        const incomingVersion = data.schema_version || 1;
+
+        const previewHtml = `
+            <div class="fixed inset-0 z-10000 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="cancelRestore()"></div>
+                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30">
+                    <h2 class="text-xl font-serif italic text-rose-500 mb-2">${S("preview_restore", "Preview Restore")}</h2>
+                    <p class="text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30">
+                        ⚠️ ${S("restore_warning", "Applying this will overwrite your current device data permanently.")}
+                    </p>
+                    <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-2 mb-6 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">
+                            <span class="font-bold text-slate-400">${S("backup_date", "Backup Date:")}</span> 
+                            <span>${date}</span>
+                        </li>
+                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">
+                            <span class="font-bold text-slate-400">${S("history_entries", "History Entries:")}</span> 
+                            <span>${historyCount}</span>
+                        </li>
+                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">
+                            <span class="font-bold text-slate-400">${S("daily_logs", "Daily Logs:")}</span> 
+                            <span>${logCount}</span>
+                        </li>
+                        <li class="flex justify-between pb-1">
+                            <span class="font-bold text-slate-400">${S("data_version", "Data Version:")}</span> 
+                            <span>v${incomingVersion}</span>
+                        </li>
+                    </ul>
+                    <div class="flex gap-3">
+                        <button onclick="cancelRestore()" class="flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5">${S("btn_cancel", "Cancel")}</button>
+                        <button onclick="confirmRestore()" class="flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30">${S("btn_confirm_restore", "Confirm Restore")}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const modalContainer = document.createElement("div");
+        modalContainer.id = "restorePreviewContainer";
+        modalContainer.innerHTML = previewHtml;
+        document.body.appendChild(modalContainer);
+    }
+
+    window.cancelRestore = () => {
+        pendingImportData = null;
+        const container = document.getElementById("restorePreviewContainer");
+        if (container) container.remove();
+    };
+
+    window.confirmRestore = () => {
+        if (!pendingImportData) return;
+
+        App.status = pendingImportData.tahara_status;
+        App.lastChanged = pendingImportData.tahara_last_changed;
+        App.history = pendingImportData.tahara_history;
+        App.fasting = pendingImportData.tahara_fasting || {missed: 0, paid: 0};
+        App.dailyLogs = pendingImportData.tahara_logs || {};
+
+        // Save schema version of imported data (or 1 if old backup)
+        localStorage.setItem("tahara_schema_version", (pendingImportData.schema_version || 1).toString());
+
+        saveState();
+        saveFasting();
+        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
+
+        window.cancelRestore();
+        location.reload(); // Reload to run migrations if an older version was imported
+    };
 
     function deleteLastEntry() {
         if (App.history.length === 0) return;
@@ -803,7 +967,6 @@
    ========================================= */
 
     // 1. Define the function
-// 1. Define the function
     function initServiceWorker() {
         if (!("serviceWorker" in navigator)) return;
 

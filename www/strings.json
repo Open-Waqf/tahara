@@ -71,7 +71,17 @@
     "sym_nausea": "Nausea",
     "play_store_label": "Rate on Play Store",
     "play_store_rate_label": "Rate on Play Store",
-    "play_store_get_label": "Get it on Google Play"
+    "play_store_get_label": "Get it on Google Play",
+    "preview_restore": "Preview Restore",
+    "restore_warning": "Applying this will overwrite your current device data permanently.",
+    "backup_date": "Backup Date:",
+    "history_entries": "History Entries:",
+    "daily_logs": "Daily Logs:",
+    "data_version": "Data Version:",
+    "btn_cancel": "Cancel",
+    "btn_confirm_restore": "Confirm Restore",
+    "unknown_date": "Unknown Date",
+    "backup_needed": "Backup Needed!"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -139,7 +149,17 @@
     "sym_nausea": "غثيان",
     "play_store_label": "قيمنا على متجر بلاي",
     "play_store_rate_label": "قيمنا على متجر بلاي",
-    "play_store_get_label": "احصلي عليه من متجر بلاي"
+    "play_store_get_label": "احصلي عليه من متجر بلاي",
+    "preview_restore": "معاينة الاستعادة",
+    "restore_warning": "تطبيق هذا سيؤدي إلى استبدال بياناتك الحالية بشكل دائم.",
+    "backup_date": "تاريخ النسخة:",
+    "history_entries": "عدد السجلات:",
+    "daily_logs": "السجلات اليومية:",
+    "data_version": "إصدار البيانات:",
+    "btn_cancel": "إلغاء",
+    "btn_confirm_restore": "تأكيد الاستعادة",
+    "unknown_date": "تاريخ غير معروف",
+    "backup_needed": "يلزم نسخ احتياطي!"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -207,7 +227,17 @@
     "sym_nausea": "Nausée",
     "play_store_label": "Noter sur le Play Store",
     "play_store_rate_label": "Noter sur le Play Store",
-    "play_store_get_label": "Disponible sur Google Play"
+    "play_store_get_label": "Disponible sur Google Play",
+    "preview_restore": "Aperçu de la restauration",
+    "restore_warning": "L'application de ceci écrasera vos données actuelles de façon permanente.",
+    "backup_date": "Date de sauvegarde :",
+    "history_entries": "Entrées d'historique :",
+    "daily_logs": "Journaux quotidiens :",
+    "data_version": "Version des données :",
+    "btn_cancel": "Annuler",
+    "btn_confirm_restore": "Confirmer la restauration",
+    "unknown_date": "Date inconnue",
+    "backup_needed": "Sauvegarde requise !"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -275,7 +305,17 @@
     "sym_nausea": "Náuseas",
     "play_store_label": "Valorar en Play Store",
     "play_store_rate_label": "Valorar en Play Store",
-    "play_store_get_label": "Disponible en Google Play"
+    "play_store_get_label": "Disponible en Google Play",
+    "preview_restore": "Vista previa de restauración",
+    "restore_warning": "Aplicar esto sobrescribirá tus datos actuales de forma permanente.",
+    "backup_date": "Fecha de copia:",
+    "history_entries": "Entradas del historial:",
+    "daily_logs": "Registros diarios:",
+    "data_version": "Versión de datos:",
+    "btn_cancel": "Cancelar",
+    "btn_confirm_restore": "Confirmar Restauración",
+    "unknown_date": "Fecha desconocida",
+    "backup_needed": "¡Se necesita copia!"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -343,6 +383,16 @@
     "sym_nausea": "Nausea",
     "play_store_label": "Valuta su Play Store",
     "play_store_rate_label": "Valuta su Play Store",
-    "play_store_get_label": "Disponibile su Google Play"
+    "play_store_get_label": "Disponibile su Google Play",
+    "preview_restore": "Anteprima ripristino",
+    "restore_warning": "L'applicazione di questo sovrascriverà permanentemente i tuoi dati attuali.",
+    "backup_date": "Data di backup:",
+    "history_entries": "Voci cronologia:",
+    "daily_logs": "Registri giornalieri:",
+    "data_version": "Versione dati:",
+    "btn_cancel": "Annulla",
+    "btn_confirm_restore": "Conferma Ripristino",
+    "unknown_date": "Data sconosciuta",
+    "backup_needed": "Backup necessario!"
   }
 }
