@@ -38,6 +38,9 @@ jobs:
       - name: Check Performance Budget
         run: npm run size
 
+      - name: Run Unit Tests
+        run: npm run test
+
       - name: Deploy to Deploy Branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:

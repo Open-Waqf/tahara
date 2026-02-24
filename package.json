@@ -8,7 +8,9 @@
     "build:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --minify",
     "watch:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
     "build": "npm run build:css",
-    "size": "size-limit"
+    "size": "size-limit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "size-limit": [
     {
@@ -39,6 +41,7 @@
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.0.2",
     "@size-limit/file": "^11.1.0",
-    "size-limit": "^11.1.0"
+    "size-limit": "^11.1.0",
+    "vitest": "4.0.18"
   }
 }
