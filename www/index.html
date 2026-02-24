@@ -51,10 +51,16 @@
             <span id="debtDot"
                   class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#1a1617]"></span>
         </button>
-        <button id="themeToggle"
-                class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center text-xs">
-            🌙
-        </button>
+        <div class="flex items-center gap-4">
+            <button id="settingsBtn"
+                    class="w-8 h-8 rounded-full bg-slate-50 dark:bg-white/5 text-slate-500 flex items-center justify-center text-xs hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
+                ⚙️
+            </button>
+            <button id="themeToggle"
+                    class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center text-xs">
+                🌙
+            </button>
+        </div>
     </div>
 </nav>
 
@@ -73,16 +79,6 @@
         <h3 class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-4 font-bold" data-i18n="recent_history">
             Recent Activity</h3>
         <div id="history-list" class="space-y-3"></div>
-        <div class="mt-4 flex flex-col items-center gap-2">
-            <a id="playStoreBtn" href="#" target="_blank"
-               class="text-[10px] text-rose-400 font-bold hover:text-rose-600 border-b border-rose-200 pb-0.5 transition-colors hidden"
-               data-i18n="play_store_label">Rate on Play Store
-            </a>
-            <a id="contactBtn" href="#"
-               class="text-[10px] text-rose-400 font-bold hover:text-rose-600 border-b border-rose-200 pb-0.5 transition-colors"
-               data-i18n="contact_label">Contact Support</a>
-            <div id="appVersion" class="text-[9px] text-rose-200 font-mono opacity-50"></div>
-        </div>
     </div>
 </main>
 
@@ -230,6 +226,85 @@
             </button>
         </div>
         <button onclick="dismissInstall()" class="text-slate-300 hover:text-slate-500 p-1">✕</button>
+    </div>
+</div>
+
+<div id="settingsModal" class="fixed inset-0 z-[10000] hidden flex items-end sm:justify-center sm:items-center sm:p-6">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onclick="closeSettings()"></div>
+    <div class="relative w-full sm:max-w-md bg-white dark:bg-[#1a1617] rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl transition-transform duration-500 transform translate-y-full flex flex-col max-h-[90vh]"
+         id="settingsContent">
+        <div id="settingsHandle" class="w-full pt-4 pb-2 shrink-0 flex justify-center cursor-pointer touch-none"
+             onclick="closeSettings()">
+            <div class="w-12 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full"></div>
+        </div>
+        <div class="overflow-y-auto px-6 pb-8 pt-2 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+            <h2 class="text-xl font-serif italic text-slate-700 dark:text-slate-200 mb-6 text-center"
+                data-i18n="settings_title">Settings</h2>
+
+            <div class="mb-6">
+                <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
+                      data-i18n="section_notifications">Notifications</span>
+                <div class="bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/5">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-200 block"
+                                  data-i18n="reminder_toggle">Daily Reminder</span>
+                            <span class="text-[10px] text-slate-400" data-i18n="reminder_desc">Get a local notification to log your daily wellness.</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                            <input type="checkbox" id="reminderToggle" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-rose-500"></div>
+                        </label>
+                    </div>
+                    <div id="reminderTimeContainer"
+                         class="flex justify-between items-center mt-4 pt-4 border-t border-slate-200 dark:border-white/10 hidden">
+                        <span class="text-xs font-bold text-slate-500 dark:text-slate-400" data-i18n="reminder_time">Reminder Time</span>
+                        <input type="time" id="reminderTime"
+                               class="bg-white dark:bg-[#1a1617] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:border-rose-400">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
+                      data-i18n="section_data">Data Management</span>
+                <div class="bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/5 overflow-hidden flex flex-col">
+                    <button id="settingsBackupBtn"
+                            class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-300" data-i18n="btn_backup">Backup Data</span>
+                        <span id="settingsWarningSign" class="hidden text-sm animate-pulse">⚠️</span>
+                    </button>
+                    <button id="settingsRestoreBtn"
+                            class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-left">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-300" data-i18n="btn_restore">Restore Data</span>
+                    </button>
+                    <button id="settingsResetBtn"
+                            class="flex items-center justify-between p-4 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors text-left">
+                        <span class="text-sm font-bold text-rose-500" data-i18n="clear_data">Reset App Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
+                      data-i18n="section_about">About</span>
+                <div class="bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/5 overflow-hidden flex flex-col">
+                    <a id="playStoreBtn" href="#" target="_blank"
+                       class="hidden flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-left">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-300" id="playStoreText">Rate on Play Store</span>
+                    </a>
+                    <a id="contactBtn" href="#"
+                       class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-left">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-300" data-i18n="contact_label">Contact Support</span>
+                    </a>
+                    <div class="p-4 flex justify-between items-center text-xs text-slate-400 font-mono">
+                        <span>Version</span>
+                        <span id="appVersion">Dev</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 

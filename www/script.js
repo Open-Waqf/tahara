@@ -206,6 +206,77 @@
     };
 
     // ==========================================
+    // NOTIFICATION MANAGER
+    // ==========================================
+    const NotificationManager = {
+        async init() {
+            App.reminderEnabled = localStorage.getItem("tahara_reminder_enabled") === "true";
+            App.reminderTime = localStorage.getItem("tahara_reminder_time") || "20:00"; // 8 PM Default
+        },
+
+        async requestPermission() {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const {LocalNotifications} = Capacitor.Plugins;
+                const permStatus = await LocalNotifications.requestPermissions();
+                return permStatus.display === 'granted';
+            } else if ("Notification" in window) {
+                const permission = await Notification.requestPermission();
+                return permission === "granted";
+            }
+            return false;
+        },
+
+        async scheduleDaily() {
+            if (!App.reminderEnabled) return this.cancelAll();
+
+            const [hours, minutes] = App.reminderTime.split(':').map(Number);
+
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const {LocalNotifications} = Capacitor.Plugins;
+                await LocalNotifications.cancel({notifications: [{id: 1}]}); // Clear old
+
+                await LocalNotifications.schedule({
+                    notifications: [
+                        {
+                            title: S("notif_title", "Tahara Check-in"),
+                            body: S("notif_body", "Don't forget to log your mood and symptoms today."),
+                            id: 1,
+                            schedule: {on: {hour: hours, minute: minutes}, repeats: true},
+                            sound: null
+                        }
+                    ]
+                });
+            }
+        },
+
+        async cancelAll() {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const {LocalNotifications} = Capacitor.Plugins;
+                await LocalNotifications.cancel({notifications: [{id: 1}]});
+            }
+        },
+
+        // Best-effort Web Fallback (triggers if tab is open)
+        checkWebFallback() {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) return;
+            if (!App.reminderEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
+
+            const now = new Date();
+            const [hours, minutes] = App.reminderTime.split(':').map(Number);
+            const lastFired = localStorage.getItem("tahara_last_notif_date");
+            const todayDate = now.toDateString();
+
+            if (now.getHours() === hours && now.getMinutes() >= minutes && lastFired !== todayDate) {
+                new Notification(S("notif_title", "Tahara Check-in"), {
+                    body: S("notif_body", "Don't forget to log your mood and symptoms today."),
+                    icon: "./img/favicon-96x96.png"
+                });
+                localStorage.setItem("tahara_last_notif_date", todayDate);
+            }
+        }
+    };
+
+    // ==========================================
     // 3. CORE LOGIC (Stats & Context)
     // ==========================================
     function calculateStats() {
@@ -436,6 +507,7 @@
         drawer.classList.remove("opacity-0", "translate-y-10");
         drawer.style.opacity = "1";
         let html = "";
+
         if (App.history.length === 0) {
             html = `<div class="text-center text-slate-400 text-xs py-4 italic">${S("no_history", "No history yet")}</div>`;
         } else {
@@ -446,34 +518,11 @@
                 return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span><span class="${textCol} font-bold text-slate-600">${label}</span></div><span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span></div>`;
             }).join('');
         }
-        // --- NEW BACKUP REMINDER LOGIC ---
-        const lastBackupStr = localStorage.getItem("tahara_last_backup");
-        let needsBackup = false;
-        if (!lastBackupStr && App.history.length > 0) {
-            needsBackup = true;
-        } else if (lastBackupStr) {
-            const daysSinceBackup = (new Date() - new Date(lastBackupStr)) / (1000 * 60 * 60 * 24);
-            if (daysSinceBackup >= 30) needsBackup = true;
-        }
-
-        // Animated warning sign next to the button
-        const warningSign = needsBackup ? `
-            <span class="text-[10px] animate-pulse cursor-help" title="${S("backup_needed", "Backup Needed!")}">⚠️</span>
-        ` : "";
 
         html += `
         <div class="flex gap-2 mt-4">
             <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button>
             <button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button>
-        </div>
-        
-        <div class="grid grid-cols-3 gap-2 mt-6 border-t border-rose-50 dark:border-white/5 pt-4">
-            <div class="flex items-center justify-center gap-1">
-                <button id="backupBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_backup", "Backup")}</button>
-                ${warningSign}
-            </div>
-            <button id="restoreBtn" class="text-[10px] text-slate-500 hover:text-rose-500 uppercase tracking-wider font-bold">${S("btn_restore", "Restore")}</button>
-            <button id="clearDataBtn" class="text-[10px] text-rose-400 hover:text-rose-600 uppercase tracking-wider font-bold">${S("clear_data", "Reset")}</button>
         </div>`;
 
         list.innerHTML = html;
@@ -481,11 +530,66 @@
         setTimeout(() => {
             if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
             if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
-            if (el("backupBtn")) el("backupBtn").onclick = exportData;
-            if (el("restoreBtn")) el("restoreBtn").onclick = importData;
-            if (el("clearDataBtn")) el("clearDataBtn").onclick = clearAllData;
         }, 0);
     }
+
+    // --- SETTINGS MODAL LOGIC ---
+    window.openSettings = () => {
+        el("settingsModal").classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+        App.modalOpen = true;
+        setTimeout(() => el("settingsContent").classList.remove("translate-y-full"), 10);
+
+        // Populate Data
+        el("reminderToggle").checked = App.reminderEnabled;
+        el("reminderTime").value = App.reminderTime;
+        if (App.reminderEnabled) el("reminderTimeContainer").classList.remove("hidden");
+
+        // Set Warning Sign for Backup
+        const lastBackupStr = localStorage.getItem("tahara_last_backup");
+        let needsBackup = false;
+        if (!lastBackupStr && App.history.length > 0) needsBackup = true;
+        else if (lastBackupStr && (new Date() - new Date(lastBackupStr)) / 86400000 >= 30) needsBackup = true;
+
+        const sign = el("settingsWarningSign");
+        if (sign) needsBackup ? sign.classList.remove("hidden") : sign.classList.add("hidden");
+    };
+
+    window.closeSettings = () => {
+        el("settingsContent").classList.add("translate-y-full");
+        setTimeout(() => {
+            el("settingsModal").classList.add("hidden");
+            document.body.style.overflow = "";
+            App.modalOpen = false;
+        }, 300);
+    };
+
+    // Handle Reminder Toggle
+    el("reminderToggle").addEventListener("change", async (e) => {
+        const isEnabled = e.target.checked;
+        if (isEnabled) {
+            const granted = await NotificationManager.requestPermission();
+            if (!granted) {
+                e.target.checked = false;
+                alert(S("notif_denied", "Notification permission was denied."));
+                return;
+            }
+            el("reminderTimeContainer").classList.remove("hidden");
+        } else {
+            el("reminderTimeContainer").classList.add("hidden");
+        }
+
+        App.reminderEnabled = isEnabled;
+        localStorage.setItem("tahara_reminder_enabled", isEnabled);
+        NotificationManager.scheduleDaily();
+    });
+
+    // Handle Reminder Time Change
+    el("reminderTime").addEventListener("change", (e) => {
+        App.reminderTime = e.target.value;
+        localStorage.setItem("tahara_reminder_time", App.reminderTime);
+        NotificationManager.scheduleDaily();
+    });
 
     function renderFullInsights() {
         const fullList = el("fullHistoryList");
@@ -543,37 +647,52 @@
         }, 300);
     };
 
-    function initDragToDismiss() {
-        const handle = el("modalHandle");
-        const content = el("modalContent");
+    function attachDragToDismiss(handleId, contentId, closeCallback) {
+        const handle = el(handleId);
+        const content = el(contentId);
         if (!handle || !content) return;
+
         let startY = 0, currentY = 0, isDragging = false;
+
         handle.addEventListener("touchstart", (e) => {
             startY = e.touches[0].clientY;
             isDragging = true;
             content.style.transition = "none";
         }, {passive: true});
+
         handle.addEventListener("touchmove", (e) => {
             if (!isDragging) return;
             currentY = e.touches[0].clientY;
             const delta = currentY - startY;
             if (delta > 0) content.style.transform = `translateY(${delta}px)`;
         }, {passive: true});
+
         handle.addEventListener("touchend", () => {
             if (!isDragging) return;
             isDragging = false;
             const delta = currentY - startY;
             content.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)";
+
             if (delta > 120) {
+                // If dragged down far enough, swipe it away
                 content.style.transform = "translateY(100%)";
                 setTimeout(() => {
-                    closeInsights();
-                    content.style.transform = "";
+                    closeCallback();
+                    content.style.transform = ""; // Reset for next time
                 }, 300);
             } else {
+                // Otherwise, snap back to top
                 content.style.transform = "";
             }
         });
+    }
+
+    function initDragToDismiss() {
+        // Attach to Insights Modal
+        attachDragToDismiss("modalHandle", "modalContent", window.closeInsights);
+
+        // Attach to Settings Modal
+        attachDragToDismiss("settingsHandle", "settingsContent", window.closeSettings);
     }
 
     // ==========================================
@@ -1019,6 +1138,14 @@
         document.documentElement.lang = App.currentLang;
         document.body.classList.toggle("dark", App.isDark);
 
+        // Add this inside init():
+        NotificationManager.init();
+
+        if (el("settingsBtn")) el("settingsBtn").onclick = openSettings;
+        if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
+        if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
+        if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
+
         const langSel = el("langSelect");
         if (langSel) langSel.value = App.currentLang;
 
@@ -1047,7 +1174,10 @@
         updateStatusUI();
         renderHistory();
         updateLiveCounter();
-        setInterval(updateLiveCounter, 1000);
+        setInterval(() => {
+            updateLiveCounter();
+            NotificationManager.checkWebFallback();
+        }, 1000);
         checkVersion();
         el("mainActionBtn").onclick = toggleStatus;
         // 1. Update during initial load

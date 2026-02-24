@@ -86,7 +86,16 @@
     "btn_delete": "Delete",
     "clear_title": "Reset App Data",
     "explainer_cycle": "Calculated by averaging the duration of your past completed Hayd cycles. Does not include your currently active cycle.",
-    "explainer_purity": "Calculated by averaging the days between the end of one Hayd and the start of the next."
+    "explainer_purity": "Calculated by averaging the days between the end of one Hayd and the start of the next.",
+    "settings_title": "Settings",
+    "section_notifications": "Notifications",
+    "section_data": "Data Management",
+    "section_about": "About",
+    "reminder_toggle": "Daily Check-in Reminder",
+    "reminder_time": "Reminder Time",
+    "reminder_desc": "Get a local notification to log your daily wellness.",
+    "notif_title": "Tahara Check-in",
+    "notif_body": "Don't forget to log your mood and symptoms today."
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -169,7 +178,17 @@
     "btn_delete": "حذف",
     "clear_title": "إعادة ضبط التطبيق",
     "explainer_cycle": "يتم حسابه بمتوسط مدة دورات الحيض السابقة المكتملة. لا يشمل دورتك الحالية المستمرة.",
-    "explainer_purity": "يتم حسابه بمتوسط الأيام بين نهاية حيض وبداية الذي يليه."
+    "explainer_purity": "يتم حسابه بمتوسط الأيام بين نهاية حيض وبداية الذي يليه.",
+    "settings_title": "الإعدادات",
+    "section_notifications": "الإشعارات",
+    "section_data": "إدارة البيانات",
+    "section_about": "حول التطبيق",
+    "reminder_toggle": "تذكير يومي",
+    "reminder_time": "وقت التذكير",
+    "reminder_desc": "احصلي على إشعار محلي لتسجيل حالتك اليومية.",
+    "notif_title": "تفقد طهارة اليومي",
+    "notif_body": "لا تنسي تسجيل حالتك المزاجية والأعراض اليوم.",
+    "notif_denied": "تم رفض إذن الإشعارات."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -252,7 +271,17 @@
     "btn_delete": "Supprimer",
     "clear_title": "Réinitialiser l'application",
     "explainer_cycle": "Calculé en faisant la moyenne de la durée de vos cycles de Hayd précédents terminés. N'inclut pas votre cycle actuel en cours.",
-    "explainer_purity": "Calculé en faisant la moyenne des jours entre la fin d'un Hayd et le début du suivant."
+    "explainer_purity": "Calculé en faisant la moyenne des jours entre la fin d'un Hayd et le début du suivant.",
+    "settings_title": "Paramètres",
+    "section_notifications": "Notifications",
+    "section_data": "Gestion des données",
+    "section_about": "À propos",
+    "reminder_toggle": "Rappel quotidien",
+    "reminder_time": "Heure du rappel",
+    "reminder_desc": "Recevez une notification locale pour noter votre bien-être quotidien.",
+    "notif_title": "Check-in Tahara",
+    "notif_body": "N'oubliez pas d'enregistrer votre humeur et vos symptômes aujourd'hui.",
+    "notif_denied": "L'autorisation de notification a été refusée."
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -335,7 +364,17 @@
     "btn_delete": "Eliminar",
     "clear_title": "Restablecer datos",
     "explainer_cycle": "Calculado promediando la duración de tus ciclos de Hayd pasados completados. No incluye tu ciclo activo actual.",
-    "explainer_purity": "Calculado promediando los días entre el final de un Hayd y el inicio del siguiente."
+    "explainer_purity": "Calculado promediando los días entre el final de un Hayd y el inicio del siguiente.",
+    "settings_title": "Ajustes",
+    "section_notifications": "Notificaciones",
+    "section_data": "Gestión de datos",
+    "section_about": "Acerca de",
+    "reminder_toggle": "Recordatorio diario",
+    "reminder_time": "Hora del recordatorio",
+    "reminder_desc": "Recibe una notificación local para registrar tu bienestar diario.",
+    "notif_title": "Check-in Tahara",
+    "notif_body": "No olvides registrar tu estado de ánimo y síntomas hoy.",
+    "notif_denied": "El permiso de notificación fue denegado."
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -418,6 +457,16 @@
     "btn_delete": "Elimina",
     "clear_title": "Ripristina i dati",
     "explainer_cycle": "Calcolato facendo la media della durata dei tuoi cicli Hayd passati completati. Non include il tuo ciclo attivo attuale.",
-    "explainer_purity": "Calcolato facendo la media dei giorni tra la fine di un Hayd e l'inizio del successivo."
+    "explainer_purity": "Calcolato facendo la media dei giorni tra la fine di un Hayd e l'inizio del successivo.",
+    "settings_title": "Impostazioni",
+    "section_notifications": "Notifiche",
+    "section_data": "Gestione dati",
+    "section_about": "Informazioni",
+    "reminder_toggle": "Promemoria giornaliero",
+    "reminder_time": "Orario promemoria",
+    "reminder_desc": "Ricevi una notifica locale per registrare il tuo benessere quotidiano.",
+    "notif_title": "Check-in Tahara",
+    "notif_body": "Non dimenticare di registrare il tuo umore e i sintomi oggi.",
+    "notif_denied": "Il permesso per le notifiche è stato negato."
   }
 }
