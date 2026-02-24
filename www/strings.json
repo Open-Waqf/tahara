@@ -81,7 +81,12 @@
     "btn_cancel": "Cancel",
     "btn_confirm_restore": "Confirm Restore",
     "unknown_date": "Unknown Date",
-    "backup_needed": "Backup Needed!"
+    "backup_needed": "Backup Needed!",
+    "delete_title": "Undo Entry",
+    "btn_delete": "Delete",
+    "clear_title": "Reset App Data",
+    "explainer_cycle": "Calculated by averaging the duration of your past completed Hayd cycles. Does not include your currently active cycle.",
+    "explainer_purity": "Calculated by averaging the days between the end of one Hayd and the start of the next."
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -159,7 +164,12 @@
     "btn_cancel": "إلغاء",
     "btn_confirm_restore": "تأكيد الاستعادة",
     "unknown_date": "تاريخ غير معروف",
-    "backup_needed": "يلزم نسخ احتياطي!"
+    "backup_needed": "يلزم نسخ احتياطي!",
+    "delete_title": "تراجع عن الإدخال",
+    "btn_delete": "حذف",
+    "clear_title": "إعادة ضبط التطبيق",
+    "explainer_cycle": "يتم حسابه بمتوسط مدة دورات الحيض السابقة المكتملة. لا يشمل دورتك الحالية المستمرة.",
+    "explainer_purity": "يتم حسابه بمتوسط الأيام بين نهاية حيض وبداية الذي يليه."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -237,7 +247,12 @@
     "btn_cancel": "Annuler",
     "btn_confirm_restore": "Confirmer la restauration",
     "unknown_date": "Date inconnue",
-    "backup_needed": "Sauvegarde requise !"
+    "backup_needed": "Sauvegarde requise !",
+    "delete_title": "Annuler l'entrée",
+    "btn_delete": "Supprimer",
+    "clear_title": "Réinitialiser l'application",
+    "explainer_cycle": "Calculé en faisant la moyenne de la durée de vos cycles de Hayd précédents terminés. N'inclut pas votre cycle actuel en cours.",
+    "explainer_purity": "Calculé en faisant la moyenne des jours entre la fin d'un Hayd et le début du suivant."
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -315,7 +330,12 @@
     "btn_cancel": "Cancelar",
     "btn_confirm_restore": "Confirmar Restauración",
     "unknown_date": "Fecha desconocida",
-    "backup_needed": "¡Se necesita copia!"
+    "backup_needed": "¡Se necesita copia!",
+    "delete_title": "Deshacer entrada",
+    "btn_delete": "Eliminar",
+    "clear_title": "Restablecer datos",
+    "explainer_cycle": "Calculado promediando la duración de tus ciclos de Hayd pasados completados. No incluye tu ciclo activo actual.",
+    "explainer_purity": "Calculado promediando los días entre el final de un Hayd y el inicio del siguiente."
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -393,6 +413,11 @@
     "btn_cancel": "Annulla",
     "btn_confirm_restore": "Conferma Ripristino",
     "unknown_date": "Data sconosciuta",
-    "backup_needed": "Backup necessario!"
+    "backup_needed": "Backup necessario!",
+    "delete_title": "Annulla voce",
+    "btn_delete": "Elimina",
+    "clear_title": "Ripristina i dati",
+    "explainer_cycle": "Calcolato facendo la media della durata dei tuoi cicli Hayd passati completati. Non include il tuo ciclo attivo attuale.",
+    "explainer_purity": "Calcolato facendo la media dei giorni tra la fine di un Hayd e l'inizio del successivo."
   }
 }

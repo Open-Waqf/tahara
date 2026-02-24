@@ -106,81 +106,151 @@
     }
 
     // ==========================================
+    // 3. TAHARA ENGINE
+    // ==========================================
+    const TaharaEngine = {
+        /**
+         * Calculates averages from history. Pure function.
+         * @param {Array} history - Array of {status, time} objects sorted newest first
+         * @returns {Object} { avgCycleLengthMs, avgHaydLengthMs }
+         */
+        calculateAverages: (history) => {
+            if (!history || history.length < 2) return {avgCycleLengthMs: 0, avgHaydLengthMs: 0};
+
+            const haydStarts = history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
+
+            let avgCycleLengthMs = 0;
+            if (haydStarts.length >= 2) {
+                let totalCycleMs = 0;
+                for (let i = 0; i < haydStarts.length - 1; i++) {
+                    totalCycleMs += (haydStarts[i] - haydStarts[i + 1]);
+                }
+                avgCycleLengthMs = totalCycleMs / (haydStarts.length - 1);
+            }
+
+            let totalHaydMs = 0, haydCount = 0;
+            for (let i = 0; i < history.length - 1; i++) {
+                if (history[i + 1].status === 'hayd' && history[i].status === 'purity') {
+                    totalHaydMs += (new Date(history[i].time) - new Date(history[i + 1].time));
+                    haydCount++;
+                }
+            }
+            const avgHaydLengthMs = haydCount > 0 ? totalHaydMs / haydCount : 0;
+
+            return {avgCycleLengthMs, avgHaydLengthMs};
+        },
+
+        /**
+         * Determines Fiqh context based on current state and duration. Pure function.
+         * @param {string} status - 'purity' or 'hayd'
+         * @param {Date|string} lastChanged - Time of last state change
+         * @param {Date} now - Current time
+         * @returns {Object} { ruleKey, isWarning, isAlert, days }
+         */
+        getFiqhContext: (status, lastChanged, now) => {
+            const lastDate = new Date(lastChanged);
+            const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+            const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+
+            // Precise diff in days (midnight to midnight)
+            const days = Math.floor((utc1 - utc2) / (1000 * 60 * 60 * 24));
+            const hour = now.getHours();
+
+            let ruleKey;
+            let isWarning = false;
+            let isAlert = false;
+
+            if (status === "purity") {
+                if (days === 0) {
+                    isAlert = true;
+                    if (hour >= 4 && hour < 12) ruleKey = "msg_purity_day0_morning";
+                    else if (hour >= 12 && hour < 17) ruleKey = "msg_purity_day0_afternoon";
+                    else ruleKey = "msg_purity_day0_evening";
+                } else {
+                    ruleKey = "msg_purity_general";
+                }
+            } else {
+                if (days >= 15) {
+                    ruleKey = "msg_hayd_warning_shafi";
+                    isWarning = true;
+                } else if (days >= 10) {
+                    ruleKey = "msg_hayd_warning_hanafi";
+                    isWarning = true;
+                } else if (days <= 3) {
+                    ruleKey = "msg_hayd_early";
+                } else {
+                    ruleKey = "msg_hayd_generic";
+                }
+            }
+
+            return {ruleKey, isWarning, isAlert, days};
+        },
+
+        /**
+         * Predicts next cycle dates. Pure function.
+         */
+        predictNextCycle: (history, avgCycleLengthMs, avgHaydLengthMs) => {
+            if (avgCycleLengthMs <= 0 || !history || history.length === 0) {
+                return {predStart: null, predEnd: null};
+            }
+            const lastHayd = history.find(e => e.status === 'hayd');
+            if (!lastHayd) return {predStart: null, predEnd: null};
+
+            const nextDateMs = new Date(lastHayd.time).getTime() + avgCycleLengthMs;
+            const predStart = new Date(nextDateMs);
+            const duration = avgHaydLengthMs > 0 ? avgHaydLengthMs : (5 * 86400000);
+            const predEnd = new Date(nextDateMs + duration);
+
+            return {predStart, predEnd};
+        }
+    };
+
+    // ==========================================
     // 3. CORE LOGIC (Stats & Context)
     // ==========================================
     function calculateStats() {
-        if (App.history.length < 2) return;
-        const haydStarts = App.history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
-        if (haydStarts.length < 2) return;
-        let totalCycleMs = 0;
-        for (let i = 0; i < haydStarts.length - 1; i++) totalCycleMs += (haydStarts[i] - haydStarts[i + 1]);
-        App.avgCycleLength = totalCycleMs / (haydStarts.length - 1);
-        let totalHaydMs = 0, haydCount = 0;
-        for (let i = 0; i < App.history.length - 1; i++) {
-            if (App.history[i + 1].status === 'hayd' && App.history[i].status === 'purity') {
-                totalHaydMs += (new Date(App.history[i].time) - new Date(App.history[i + 1].time));
-                haydCount++;
-            }
-        }
-        if (haydCount > 0) App.avgHaydLength = totalHaydMs / haydCount;
+        // 1. Delegate math to the engine
+        const {avgCycleLengthMs, avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history);
+        App.avgCycleLength = avgCycleLengthMs;
+        App.avgHaydLength = avgHaydLengthMs;
+
+        // 2. Update UI
         const unit = S("unit_days", "d");
         const toDays = (ms) => Math.round(ms / 86400000) + unit;
+
         if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
         if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
-        const lastStart = haydStarts[0];
-        const nextStart = new Date(lastStart.getTime() + App.avgCycleLength);
-        if (el("nextPeriodText")) el("nextPeriodText").innerText = nextStart.toLocaleDateString(App.currentLang, {
-            weekday: 'short', month: 'short', day: 'numeric'
-        });
+
+        // 3. Delegate prediction to the engine
+        const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
+        if (predStart && el("nextPeriodText")) {
+            el("nextPeriodText").innerText = predStart.toLocaleDateString(App.currentLang, {
+                weekday: 'short', month: 'short', day: 'numeric'
+            });
+        }
     }
 
     function updateContextMessage() {
         const descText = document.querySelector("[data-i18n='status_desc']");
         if (!descText) return;
+
         if (App.history.length === 0) {
             descText.innerText = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
             descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
             return;
         }
 
-        // FIX: Timezone-Safe Day Calculation (UTC Midnight to UTC Midnight)
-        const now = new Date();
-        const lastDate = new Date(App.lastChanged);
+        // 1. Get the pure Fiqh context
+        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date());
 
-        const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-        const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-        const _MS_PER_DAY = 1000 * 60 * 60 * 24;
+        // 2. Apply it to the DOM
+        descText.innerText = S(context.ruleKey);
+        descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
 
-        // precise diff in days
-        const days = Math.floor((utc1 - utc2) / _MS_PER_DAY);
-
-        // Get local hour for morning/evening logic
-        const hour = now.getHours();
-
-        if (App.status === "purity") {
-            // Only give "Ghusl" advice if it is the SAME calendar day (Day 0)
-            if (days === 0) {
-                if (hour >= 4 && hour < 12) descText.innerText = S("msg_purity_day0_morning"); else if (hour >= 12 && hour < 17) descText.innerText = S("msg_purity_day0_afternoon"); else descText.innerText = S("msg_purity_day0_evening");
-                descText.classList.add("text-amber-600", "font-bold");
-            } else {
-                descText.innerText = S("msg_purity_general");
-                descText.classList.remove("text-amber-600", "font-bold");
-            }
-        } else {
-            // Fiqh Logic: 15 days (Shafi'i) or 10 days (Hanafi) max for Hayd
-            if (days >= 15) {
-                descText.innerText = S("msg_hayd_warning_shafi");
-                descText.classList.add("text-rose-600", "font-bold");
-            } else if (days >= 10) {
-                descText.innerText = S("msg_hayd_warning_hanafi");
-                descText.classList.add("text-rose-600", "font-bold");
-            } else if (days <= 3) {
-                descText.innerText = S("msg_hayd_early");
-                descText.classList.remove("text-rose-600", "font-bold");
-            } else {
-                descText.innerText = S("msg_hayd_generic");
-                descText.classList.remove("text-rose-600", "font-bold");
-            }
+        if (context.isWarning) {
+            descText.classList.add("text-rose-600", "font-bold");
+        } else if (context.isAlert) {
+            descText.classList.add("text-amber-600", "font-bold");
         }
     }
 
@@ -227,16 +297,7 @@
         const selDateKey = getIsoDate(App.selectedDate);
 
         // Prediction Window
-        let predStart = null, predEnd = null;
-        if (App.avgCycleLength > 0 && App.history.length > 0) {
-            const lastHayd = App.history.find(e => e.status === 'hayd');
-            if (lastHayd) {
-                const nextDateMs = new Date(lastHayd.time).getTime() + App.avgCycleLength;
-                predStart = new Date(nextDateMs);
-                const duration = App.avgHaydLength > 0 ? App.avgHaydLength : (5 * 86400000);
-                predEnd = new Date(nextDateMs + duration);
-            }
-        }
+        const {predStart, predEnd} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
 
         for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
 
@@ -663,6 +724,62 @@
         input.click();
     }
 
+    window.showInfoModal = (titleKey, messageKey) => {
+        const modalHtml = `
+            <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customInfoModal" style="z-index: 99999;">
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeInfoModal()"></div>
+                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">
+                    <div class="w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">
+                        ℹ️
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
+                    <button onclick="closeInfoModal()" class="w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>
+                </div>
+            </div>
+        `;
+        const container = document.createElement("div");
+        container.innerHTML = modalHtml;
+        document.body.appendChild(container);
+    };
+
+    window.closeInfoModal = () => {
+        const modal = document.getElementById("customInfoModal");
+        if (modal) modal.parentElement.remove();
+    };
+
+    function showConfirmModal(titleKey, messageKey, confirmBtnKey, onConfirmCallback) {
+        const modalHtml = `
+            <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customConfirmModal" style="z-index: 99999;">
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeConfirmModal()"></div>
+                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">
+                    <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">
+                        ⚠️
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
+                    <div class="flex gap-2">
+                        <button onclick="closeConfirmModal()" class="flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>
+                        <button id="confirmActionBtn" class="flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95">${S(confirmBtnKey)}</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        const container = document.createElement("div");
+        container.innerHTML = modalHtml;
+        document.body.appendChild(container);
+
+        document.getElementById("confirmActionBtn").onclick = () => {
+            closeConfirmModal();
+            onConfirmCallback();
+        };
+    }
+
+    window.closeConfirmModal = () => {
+        const modal = document.getElementById("customConfirmModal");
+        if (modal) modal.parentElement.remove();
+    };
+
     function showRestorePreview(data) {
         const historyCount = data.tahara_history.length;
         const logCount = Object.keys(data.tahara_logs || {}).length;
@@ -670,7 +787,7 @@
         const incomingVersion = data.schema_version || 1;
 
         const previewHtml = `
-            <div class="fixed inset-0 z-10000 flex items-center justify-center p-4">
+            <div class="fixed inset-0 flex items-center justify-center p-4" id="restorePreviewContainer" style="z-index: 99999;">
                 <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="cancelRestore()"></div>
                 <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30">
                     <h2 class="text-xl font-serif italic text-rose-500 mb-2">${S("preview_restore", "Preview Restore")}</h2>
@@ -702,11 +819,9 @@
                 </div>
             </div>
         `;
-
-        const modalContainer = document.createElement("div");
-        modalContainer.id = "restorePreviewContainer";
-        modalContainer.innerHTML = previewHtml;
-        document.body.appendChild(modalContainer);
+        const container = document.createElement("div");
+        container.innerHTML = previewHtml;
+        document.body.appendChild(container);
     }
 
     window.cancelRestore = () => {
@@ -737,34 +852,50 @@
 
     function deleteLastEntry() {
         if (App.history.length === 0) return;
-        if (confirm(S("delete_confirm", "Delete last entry?"))) {
-            App.history.shift();
-            if (App.history.length > 0) {
-                App.status = App.history[0].status;
-                App.lastChanged = App.history[0].time;
-            } else {
-                App.status = "purity";
-                App.lastChanged = new Date().toISOString();
+
+        showConfirmModal(
+            "delete_title", // You'll need to add this to strings.json
+            "delete_confirm",
+            "btn_delete",   // You'll need to add this to strings.json
+            () => {
+                App.history.shift();
+                if (App.history.length > 0) {
+                    App.status = App.history[0].status;
+                    App.lastChanged = App.history[0].time;
+                } else {
+                    App.status = "purity";
+                    App.lastChanged = new Date().toISOString();
+                }
+                saveState();
+                updateStatusUI();
+                renderHistory();
+                updateLiveCounter();
             }
-            saveState();
-            updateStatusUI();
-            renderHistory();
-            updateLiveCounter();
-        }
+        );
     }
 
     function clearAllData() {
-        if (confirm(S("clear_confirm", "Clear all?"))) {
-            localStorage.clear();
-            App.history = [];
-            App.fasting = {missed: 0, paid: 0};
-            App.status = "purity";
-            App.lastChanged = new Date().toISOString();
-            App.dailyLogs = {};
-            updateStatusUI();
-            renderHistory();
-            updateLiveCounter();
-        }
+        showConfirmModal(
+            "clear_title", // You'll need to add this to strings.json
+            "clear_confirm",
+            "clear_data",
+            () => {
+                localStorage.clear();
+                App.history = [];
+                App.fasting = {missed: 0, paid: 0};
+                App.status = "purity";
+                App.lastChanged = new Date().toISOString();
+                App.dailyLogs = {};
+                // Restore essential settings that shouldn't be wiped completely
+                localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
+                localStorage.setItem("tahara_userLang", App.currentLang);
+                localStorage.setItem("tahara_darkMode", App.isDark);
+
+                updateStatusUI();
+                renderHistory();
+                updateLiveCounter();
+            }
+        );
     }
 
     function updateLiveCounter() {
