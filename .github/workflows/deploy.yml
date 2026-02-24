@@ -62,6 +62,9 @@ jobs:
           terser www/sw.js --no-compress --no-mangle --format beautify=true,comments=false -o www/sw.js
           cleancss --format beautify www/style.css -o www/style.css
 
+      - name: Copy CNAME
+        run: echo "tahara.open-waqf.org" > CNAME
+
       # --- 3. DEPLOY STAGE ---
       - name: Deploy to Deploy Branch
         uses: JamesIves/github-pages-deploy-action@v4
