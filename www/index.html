@@ -233,6 +233,33 @@
                 </button>
             </div>
         </div>
+
+        <div class="mb-8">
+            <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
+                  data-i18n="section_about">About</span>
+            <div class="bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/5 overflow-hidden flex flex-col">
+                <button onclick="startOnboarding()"
+                        class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-start">
+                    <span class="text-sm font-bold text-slate-600 dark:text-slate-300"
+                          data-i18n="btn_replay_onboarding">Replay Tutorial</span>
+                </button>
+
+                <a id="playStoreBtn" href="#" target="_blank"
+                   class="hidden flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-start">
+                    <span class="text-sm font-bold text-slate-600 dark:text-slate-300" id="playStoreText">Rate on Play Store</span>
+                </a>
+
+                <a id="contactBtn" href="#"
+                   class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-start">
+                    <span class="text-sm font-bold text-slate-600 dark:text-slate-300" data-i18n="contact_label">Contact Support</span>
+                </a>
+
+                <div class="p-4 flex justify-between items-center text-xs text-slate-400 font-mono bg-slate-100/50 dark:bg-black/20">
+                    <span data-i18n="app_version">Version</span>
+                    <span id="appVersion">Dev</span>
+                </div>
+            </div>
+        </div>
     </div>
 </main>
 
@@ -311,7 +338,57 @@
         <button onclick="dismissInstall()" class="text-slate-300 hover:text-slate-500 p-1">✕</button>
     </div>
 </div>
+<div id="onboardingModal"
+     class="fixed inset-0 bg-white dark:bg-[#1a1617] flex flex-col justify-between hidden transition-opacity duration-500 opacity-0"
+     style="z-index: 99999;">
 
+    <button onclick="skipOnboarding()"
+            class="absolute top-[calc(2rem+env(safe-area-inset-top))] end-8 text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest z-10"
+            data-i18n="onb_skip">Skip
+    </button>
+
+    <div class="flex-grow flex flex-col items-center justify-center p-8 text-center sm:max-w-md sm:mx-auto relative w-full mt-10">
+
+        <div id="onb-step-1" class="onb-step animate-fade-in flex flex-col items-center w-full">
+            <div class="w-24 h-24 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center text-5xl mb-8">
+                🌸
+            </div>
+            <h2 class="text-2xl font-serif italic text-rose-500 mb-4" data-i18n="onb_1_title">Welcome to Tahara</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs" data-i18n="onb_1_desc">Your
+                simple, reliable companion for tracking Hayd and Purity.</p>
+        </div>
+
+        <div id="onb-step-2" class="onb-step hidden animate-fade-in flex flex-col items-center w-full">
+            <div class="w-24 h-24 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full flex items-center justify-center text-5xl mb-8">
+                🔒
+            </div>
+            <h2 class="text-2xl font-serif italic text-emerald-500 mb-4" data-i18n="onb_2_title">100% Private</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs" data-i18n="onb_2_desc">Your
+                data stays on your device. No servers, no tracking, complete peace of mind.</p>
+        </div>
+
+        <div id="onb-step-3" class="onb-step hidden animate-fade-in flex flex-col items-center w-full">
+            <div class="w-24 h-24 bg-amber-50 dark:bg-amber-900/20 text-amber-500 rounded-full flex items-center justify-center text-5xl mb-8">
+                ✨
+            </div>
+            <h2 class="text-2xl font-serif italic text-amber-500 mb-4" data-i18n="onb_3_title">Smart Insights</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs" data-i18n="onb_3_desc">Tahara
+                calculates your averages, expected dates, and helps track your Ramadan fasting debt.</p>
+        </div>
+
+        <div class="flex gap-2 mt-12" id="onb-dots">
+            <div class="w-2 h-2 rounded-full bg-rose-500 onb-dot transition-colors"></div>
+            <div class="w-2 h-2 rounded-full bg-slate-200 dark:bg-white/10 onb-dot transition-colors"></div>
+            <div class="w-2 h-2 rounded-full bg-slate-200 dark:bg-white/10 onb-dot transition-colors"></div>
+        </div>
+    </div>
+
+    <div class="p-6 sm:max-w-md sm:mx-auto w-full pb-[calc(2rem+env(safe-area-inset-bottom))]">
+        <button id="onbNextBtn" onclick="nextOnboardingStep()"
+                class="action-btn w-full bg-rose-500 text-sm uppercase tracking-widest" data-i18n="onb_next">Next
+        </button>
+    </div>
+</div>
 <script type="module" src="./script.js"></script>
 <script type="application/ld+json">{
     "@context": "https://schema.org",

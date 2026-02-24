@@ -1016,6 +1016,70 @@
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
     }
 
+    // ==========================================
+    // ONBOARDING LOGIC (B2)
+    // ==========================================
+    let currentOnbStep = 1;
+
+    window.startOnboarding = () => {
+        currentOnbStep = 1;
+        updateOnboardingUI();
+        const modal = el("onboardingModal");
+        if (modal) {
+            modal.classList.remove("hidden");
+            // Tiny delay to allow display block to apply before animating opacity
+            setTimeout(() => modal.classList.remove("opacity-0"), 10);
+        }
+    };
+
+    window.nextOnboardingStep = () => {
+        if (currentOnbStep < 3) {
+            currentOnbStep++;
+            updateOnboardingUI();
+        } else {
+            window.skipOnboarding();
+        }
+    };
+
+    window.skipOnboarding = () => {
+        localStorage.setItem("tahara_onboarded", "true");
+        const modal = el("onboardingModal");
+        if (modal) {
+            modal.classList.add("opacity-0");
+            setTimeout(() => modal.classList.add("hidden"), 500);
+        }
+    };
+
+    function updateOnboardingUI() {
+        // Hide all steps
+        document.querySelectorAll(".onb-step").forEach(s => s.classList.add("hidden"));
+        // Show current step
+        const step = el(`onb-step-${currentOnbStep}`);
+        if (step) step.classList.remove("hidden");
+
+        // Update indicator dots
+        const dots = document.querySelectorAll(".onb-dot");
+        dots.forEach((d, i) => {
+            if (i === currentOnbStep - 1) {
+                d.classList.remove("bg-slate-200", "dark:bg-white/10");
+                d.classList.add("bg-rose-500");
+            } else {
+                d.classList.add("bg-slate-200", "dark:bg-white/10");
+                d.classList.remove("bg-rose-500");
+            }
+        });
+
+        // Update button text with translation
+        const btn = el("onbNextBtn");
+        if (btn) {
+            if (currentOnbStep === 3) {
+                btn.innerText = S("onb_start", "Get Started");
+            } else {
+                btn.innerText = S("onb_next", "Next");
+            }
+        }
+    }
+
     async function init() {
         try {
             const res = await fetch("strings.json");
@@ -1047,9 +1111,13 @@
         document.body.classList.toggle("dark", App.isDark);
 
         // Add this inside init():
-        NotificationManager.init();
+        await NotificationManager.init();
 
         switchTab('home');
+
+        if (localStorage.getItem("tahara_onboarded") !== "true") {
+            startOnboarding();
+        }
         if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
         if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
         if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;

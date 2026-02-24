@@ -99,7 +99,17 @@
     "tab_home": "Home",
     "tab_calendar": "Calendar",
     "tab_history": "History",
-    "tab_settings": "Settings"
+    "tab_settings": "Settings",
+    "onb_skip": "Skip",
+    "onb_next": "Next",
+    "onb_start": "Get Started",
+    "onb_1_title": "Welcome to Tahara",
+    "onb_1_desc": "Your simple, reliable companion for tracking Hayd and Purity.",
+    "onb_2_title": "100% Private",
+    "onb_2_desc": "Your data stays on your device. No servers, no tracking, complete peace of mind.",
+    "onb_3_title": "Smart Insights",
+    "onb_3_desc": "Tahara calculates your averages, expected dates, and helps track your Ramadan fasting debt.",
+    "btn_replay_onboarding": "Replay Tutorial"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -196,7 +206,17 @@
     "tab_home": "الرئيسية",
     "tab_calendar": "التقويم",
     "tab_history": "السجل",
-    "tab_settings": "الإعدادات"
+    "tab_settings": "الإعدادات",
+    "onb_skip": "تخطي",
+    "onb_next": "التالي",
+    "onb_start": "ابدأ الآن",
+    "onb_1_title": "مرحباً بك في طهارة",
+    "onb_1_desc": "رفيقك البسيط والموثوق لتتبع فترات الحيض والطهر.",
+    "onb_2_title": "خصوصية تامة 100%",
+    "onb_2_desc": "بياناتك تبقى على جهازك. لا خوادم، لا تتبع، راحة بال تامة.",
+    "onb_3_title": "رؤى ذكية",
+    "onb_3_desc": "تحسب طهارة متوسطاتك، وتواريخك المتوقعة، وتساعدك على تتبع قضاء الصيام.",
+    "btn_replay_onboarding": "إعادة الشرح"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -293,7 +313,17 @@
     "tab_home": "Accueil",
     "tab_calendar": "Calendrier",
     "tab_history": "Historique",
-    "tab_settings": "Paramètres"
+    "tab_settings": "Paramètres",
+    "onb_skip": "Passer",
+    "onb_next": "Suivant",
+    "onb_start": "Commencer",
+    "onb_1_title": "Bienvenue sur Tahara",
+    "onb_1_desc": "Votre compagnon simple et fiable pour suivre le Hayd et la Pureté.",
+    "onb_2_title": "100% Privé",
+    "onb_2_desc": "Vos données restent sur votre appareil. Pas de serveurs, pas de suivi, une tranquillité d'esprit totale.",
+    "onb_3_title": "Aperçus Intelligents",
+    "onb_3_desc": "Tahara calcule vos moyennes, vos dates prévues, et vous aide à suivre vos jours de jeûne à rattraper.",
+    "btn_replay_onboarding": "Rejouer le tutoriel"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -390,7 +420,17 @@
     "tab_home": "Inicio",
     "tab_calendar": "Calendario",
     "tab_history": "Historial",
-    "tab_settings": "Ajustes"
+    "tab_settings": "Ajustes",
+    "onb_skip": "Omitir",
+    "onb_next": "Siguiente",
+    "onb_start": "Empezar",
+    "onb_1_title": "Bienvenida a Tahara",
+    "onb_1_desc": "Tu compañero simple y confiable para rastrear el Hayd y la Pureza.",
+    "onb_2_title": "100% Privado",
+    "onb_2_desc": "Tus datos se quedan en tu dispositivo. Sin servidores, sin rastreo, total tranquilidad.",
+    "onb_3_title": "Información Inteligente",
+    "onb_3_desc": "Tahara calcula tus promedios, fechas esperadas y te ayuda a rastrear los días de ayuno pendientes.",
+    "btn_replay_onboarding": "Repetir tutorial"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -487,6 +527,16 @@
     "tab_home": "Home",
     "tab_calendar": "Calendario",
     "tab_history": "Cronologia",
-    "tab_settings": "Impostazioni"
+    "tab_settings": "Impostazioni",
+    "onb_skip": "Salta",
+    "onb_next": "Avanti",
+    "onb_start": "Inizia",
+    "onb_1_title": "Benvenuta in Tahara",
+    "onb_1_desc": "Il tuo compagno semplice e affidabile per monitorare Hayd e Purità.",
+    "onb_2_title": "Privato al 100%",
+    "onb_2_desc": "I tuoi dati rimangono sul tuo dispositivo. Nessun server, nessun tracciamento, totale tranquillità.",
+    "onb_3_title": "Informazioni Intelligenti",
+    "onb_3_desc": "Tahara calcola le tue medie, le date previste e ti aiuta a monitorare i giorni di digiuno da recuperare.",
+    "btn_replay_onboarding": "Riproduci tutorial"
   }
 }
