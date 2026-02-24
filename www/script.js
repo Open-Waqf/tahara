@@ -79,6 +79,60 @@
         return local.toISOString().split('T')[0];
     }
 
+    window.switchTab = (tabId) => {
+        // Hide all views
+        document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+        // Show target view
+        const target = el(`view-${tabId}`);
+        if (target) target.classList.remove('hidden');
+
+        // Update Bottom Nav UI
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            if (btn.getAttribute('data-tab') === tabId) {
+                btn.classList.remove('text-slate-400');
+                btn.classList.add('text-rose-500', 'font-bold');
+            } else {
+                btn.classList.add('text-slate-400');
+                btn.classList.remove('text-rose-500', 'font-bold');
+            }
+        });
+
+        // Trigger specific renders based on tab
+        if (tabId === 'calendar') {
+            App.selectedDate = new Date();
+            renderCalendar();
+            renderLogUI();
+        } else if (tabId === 'history') {
+            renderFullInsights();
+        } else if (tabId === 'fasting') {
+            updateFastingUI(); // Fetch latest fasting data when opened
+        } else if (tabId === 'settings') {
+            updateSettingsUI();
+        }
+    };
+
+    function updateSettingsUI() {
+        if (!el("reminderToggle")) return;
+
+        el("reminderToggle").checked = App.reminderEnabled;
+        el("reminderTime").value = App.reminderTime;
+        if (App.reminderEnabled) el("reminderTimeContainer").classList.remove("hidden");
+
+        // Set Warning Sign for Backup
+        const lastBackupStr = localStorage.getItem("tahara_last_backup");
+        let needsBackup = false;
+        if (!lastBackupStr && App.history.length > 0) needsBackup = true;
+        else if (lastBackupStr && (new Date() - new Date(lastBackupStr)) / 86400000 >= 30) needsBackup = true;
+
+        const sign = el("settingsWarningSign");
+        const navDot = el("settingsNavDot");
+        if (sign) needsBackup ? sign.classList.remove("hidden") : sign.classList.add("hidden");
+        // Also show a dot on the bottom nav icon so they know they need a backup!
+        if (navDot) needsBackup ? navDot.classList.remove("hidden") : navDot.classList.add("hidden");
+
+        updateFastingUI(); // Ensure fasting numbers are fresh
+    }
+
     // ==========================================
     // 2. NATIVE ANDROID FEATURES
     // ==========================================
@@ -87,22 +141,16 @@
         const {App: CapApp} = Capacitor.Plugins;
         const {StatusBar, Style} = Capacitor.Plugins;
         try {
+            await StatusBar.setOverlaysWebView({overlay: true});
+
             if (App.isDark) {
                 await StatusBar.setStyle({style: Style.Dark});
-                await StatusBar.setBackgroundColor({color: '#1a1617'});
             } else {
                 await StatusBar.setStyle({style: Style.Light});
-                await StatusBar.setBackgroundColor({color: '#fff1f2'});
             }
         } catch (e) {
+            console.log("Status bar config failed", e);
         }
-        CapApp.addListener('backButton', ({canGoBack}) => {
-            if (App.modalOpen) {
-                if (!el("insightsModal").classList.contains("hidden")) window.closeInsights(); else if (!el("fastingModal").classList.contains("hidden")) window.closeFasting();
-            } else {
-                CapApp.exitApp();
-            }
-        });
     }
 
     // ==========================================
@@ -498,72 +546,6 @@
         renderCalendar();
     };
 
-    // ==========================================
-    // 5. HISTORY & LISTS
-    // ==========================================
-    function renderHistory() {
-        const list = el("history-list");
-        const drawer = el("history-drawer");
-        drawer.classList.remove("opacity-0", "translate-y-10");
-        drawer.style.opacity = "1";
-        let html = "";
-
-        if (App.history.length === 0) {
-            html = `<div class="text-center text-slate-400 text-xs py-4 italic">${S("no_history", "No history yet")}</div>`;
-        } else {
-            html = App.history.slice(0, 5).map(entry => {
-                const dot = entry.status === 'hayd' ? 'bg-rose-400' : 'bg-amber-400';
-                const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
-                const textCol = entry.status === 'hayd' ? 'dark:text-rose-200' : 'dark:text-amber-100';
-                return `<div class="flex justify-between text-xs pb-2 border-b border-rose-50/50 dark:border-rose-900/10 animate-fade-in"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dot}"></span><span class="${textCol} font-bold text-slate-600">${label}</span></div><span class="text-slate-500 dark:text-slate-400 font-medium text-[10px]">${formatDateTime(entry.time)}</span></div>`;
-            }).join('');
-        }
-
-        html += `
-        <div class="flex gap-2 mt-4">
-            <button id="viewFullBtn" class="flex-1 py-3 text-xs text-rose-600 dark:text-rose-200 font-bold uppercase border border-rose-200 rounded-full dark:border-rose-900/30 hover:bg-rose-50 dark:hover:bg-white/5 transition-all">${S("full_insights", "Full Insights")}</button>
-            <button id="undoBtn" class="px-5 py-3 text-xs text-slate-500 border border-slate-200 rounded-full dark:border-rose-900/30 hover:text-rose-500">↩</button>
-        </div>`;
-
-        list.innerHTML = html;
-
-        setTimeout(() => {
-            if (el("viewFullBtn")) el("viewFullBtn").onclick = () => window.openInsights();
-            if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
-        }, 0);
-    }
-
-    // --- SETTINGS MODAL LOGIC ---
-    window.openSettings = () => {
-        el("settingsModal").classList.remove("hidden");
-        document.body.style.overflow = "hidden";
-        App.modalOpen = true;
-        setTimeout(() => el("settingsContent").classList.remove("translate-y-full"), 10);
-
-        // Populate Data
-        el("reminderToggle").checked = App.reminderEnabled;
-        el("reminderTime").value = App.reminderTime;
-        if (App.reminderEnabled) el("reminderTimeContainer").classList.remove("hidden");
-
-        // Set Warning Sign for Backup
-        const lastBackupStr = localStorage.getItem("tahara_last_backup");
-        let needsBackup = false;
-        if (!lastBackupStr && App.history.length > 0) needsBackup = true;
-        else if (lastBackupStr && (new Date() - new Date(lastBackupStr)) / 86400000 >= 30) needsBackup = true;
-
-        const sign = el("settingsWarningSign");
-        if (sign) needsBackup ? sign.classList.remove("hidden") : sign.classList.add("hidden");
-    };
-
-    window.closeSettings = () => {
-        el("settingsContent").classList.add("translate-y-full");
-        setTimeout(() => {
-            el("settingsModal").classList.add("hidden");
-            document.body.style.overflow = "";
-            App.modalOpen = false;
-        }, 300);
-    };
-
     // Handle Reminder Toggle
     el("reminderToggle").addEventListener("change", async (e) => {
         const isEnabled = e.target.checked;
@@ -594,105 +576,22 @@
     function renderFullInsights() {
         const fullList = el("fullHistoryList");
         if (!fullList) return;
+
+        if (App.history.length === 0) {
+            fullList.innerHTML = `<div class="text-center text-slate-400 text-sm py-12 italic">${S("no_history", "No history yet")}</div>`;
+            return;
+        }
+
         fullList.innerHTML = App.history.map(entry => {
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
-            return `<div class="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 flex justify-between items-center"><span class="text-sm font-bold ${color}">${label}</span><span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${formatDateTime(entry.time)}</span></div>`;
+            const bgClass = entry.status === 'hayd' ? 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20';
+
+            return `<div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2">
+                <span class="text-sm font-bold ${color}">${label}</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
+            </div>`;
         }).join('');
-    }
-
-    // ==========================================
-    // 6. MODAL CONTROL & DRAG
-    // ==========================================
-    window.openInsights = () => {
-        el("insightsModal").classList.remove("hidden");
-        document.body.style.overflow = "hidden";
-        App.modalOpen = true;
-        const scrollContainer = el("modalContent").querySelector(".overflow-y-auto");
-        if (scrollContainer) scrollContainer.scrollTop = 0;
-        setTimeout(() => el("modalContent").classList.remove("translate-y-full"), 10);
-        App.selectedDate = new Date(); // Reset to today
-        renderCalendar();
-        renderLogUI();
-        renderFullInsights();
-    };
-
-    window.closeInsights = () => {
-        el("modalContent").classList.add("translate-y-full");
-        setTimeout(() => {
-            el("insightsModal").classList.add("hidden");
-            document.body.style.overflow = "";
-            App.modalOpen = false;
-        }, 500);
-    };
-
-    window.openFasting = () => {
-        el("fastingModal").classList.remove("hidden");
-        document.body.style.overflow = "hidden";
-        App.modalOpen = true;
-        setTimeout(() => {
-            el("fastingContent").classList.remove("scale-95", "opacity-0");
-            el("fastingContent").classList.add("scale-100", "opacity-100");
-        }, 10);
-        updateFastingUI();
-    };
-
-    window.closeFasting = () => {
-        el("fastingContent").classList.remove("scale-100", "opacity-100");
-        el("fastingContent").classList.add("scale-95", "opacity-0");
-        setTimeout(() => {
-            el("fastingModal").classList.add("hidden");
-            document.body.style.overflow = "";
-            App.modalOpen = false;
-        }, 300);
-    };
-
-    function attachDragToDismiss(handleId, contentId, closeCallback) {
-        const handle = el(handleId);
-        const content = el(contentId);
-        if (!handle || !content) return;
-
-        let startY = 0, currentY = 0, isDragging = false;
-
-        handle.addEventListener("touchstart", (e) => {
-            startY = e.touches[0].clientY;
-            isDragging = true;
-            content.style.transition = "none";
-        }, {passive: true});
-
-        handle.addEventListener("touchmove", (e) => {
-            if (!isDragging) return;
-            currentY = e.touches[0].clientY;
-            const delta = currentY - startY;
-            if (delta > 0) content.style.transform = `translateY(${delta}px)`;
-        }, {passive: true});
-
-        handle.addEventListener("touchend", () => {
-            if (!isDragging) return;
-            isDragging = false;
-            const delta = currentY - startY;
-            content.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)";
-
-            if (delta > 120) {
-                // If dragged down far enough, swipe it away
-                content.style.transform = "translateY(100%)";
-                setTimeout(() => {
-                    closeCallback();
-                    content.style.transform = ""; // Reset for next time
-                }, 300);
-            } else {
-                // Otherwise, snap back to top
-                content.style.transform = "";
-            }
-        });
-    }
-
-    function initDragToDismiss() {
-        // Attach to Insights Modal
-        attachDragToDismiss("modalHandle", "modalContent", window.closeInsights);
-
-        // Attach to Settings Modal
-        attachDragToDismiss("settingsHandle", "settingsContent", window.closeSettings);
     }
 
     // ==========================================
@@ -708,10 +607,10 @@
         App.status = App.status === "purity" ? "hayd" : "purity";
         App.lastChanged = new Date().toISOString();
         App.history.unshift({status: App.status, time: App.lastChanged});
-        App.history.sort((a, b) => new Date(b.time) - new Date(a.time)); // Ensure sort after add
+        App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         saveState();
         updateStatusUI();
-        renderHistory();
+        renderFullInsights(); // CHANGED
         updateLiveCounter();
     }
 
@@ -719,19 +618,29 @@
         const orb = document.querySelector(".status-orb");
         const statusText = el("current-state-text");
         const actionBtn = el("mainActionBtn");
+
         updateContextMessage();
+
         if (App.status === "purity") {
-            statusText.innerText = S("status_purity", "Purity");
-            statusText.className = "text-3xl font-black text-amber-600 dark:text-amber-100 transition-colors";
-            actionBtn.innerText = S("btn_start_flow", "Mark Flow Started");
-            actionBtn.style.background = "#fb7185";
-            orb.classList.remove("status-hayd-pulse");
+            if (statusText) {
+                statusText.innerText = S("status_purity", "Purity");
+                statusText.className = "text-3xl font-black text-amber-600 dark:text-amber-100 transition-colors";
+            }
+            if (actionBtn) {
+                actionBtn.innerText = S("btn_start_flow", "Mark Flow Started");
+                actionBtn.style.background = "#fb7185";
+            }
+            if (orb) orb.classList.remove("status-hayd-pulse");
         } else {
-            statusText.innerText = S("status_hayd", "Hayd");
-            statusText.className = "text-3xl font-black text-rose-500 dark:text-rose-300 transition-colors";
-            actionBtn.innerText = S("btn_end_flow", "Mark Purity Achieved");
-            actionBtn.style.background = "#10b981";
-            orb.classList.add("status-hayd-pulse");
+            if (statusText) {
+                statusText.innerText = S("status_hayd", "Hayd");
+                statusText.className = "text-3xl font-black text-rose-500 dark:text-rose-300 transition-colors";
+            }
+            if (actionBtn) {
+                actionBtn.innerText = S("btn_end_flow", "Mark Purity Achieved");
+                actionBtn.style.background = "#10b981";
+            }
+            if (orb) orb.classList.add("status-hayd-pulse");
         }
         updateFastingUI();
     }
@@ -806,10 +715,9 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        // Save the backup date to clear the reminder
         localStorage.setItem("tahara_last_backup", new Date().toISOString());
-        // Re-render history to hide the reminder dot immediately
-        renderHistory();
+        // Re-render settings to hide the reminder dot immediately
+        updateSettingsUI(); // FIXED
     }
 
     function importData() {
@@ -973,9 +881,9 @@
         if (App.history.length === 0) return;
 
         showConfirmModal(
-            "delete_title", // You'll need to add this to strings.json
+            "delete_title",
             "delete_confirm",
-            "btn_delete",   // You'll need to add this to strings.json
+            "btn_delete",
             () => {
                 App.history.shift();
                 if (App.history.length > 0) {
@@ -987,7 +895,7 @@
                 }
                 saveState();
                 updateStatusUI();
-                renderHistory();
+                renderFullInsights(); // CHANGED
                 updateLiveCounter();
             }
         );
@@ -995,7 +903,7 @@
 
     function clearAllData() {
         showConfirmModal(
-            "clear_title", // You'll need to add this to strings.json
+            "clear_title",
             "clear_confirm",
             "clear_data",
             () => {
@@ -1005,13 +913,13 @@
                 App.status = "purity";
                 App.lastChanged = new Date().toISOString();
                 App.dailyLogs = {};
-                // Restore essential settings that shouldn't be wiped completely
+
                 localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
                 localStorage.setItem("tahara_userLang", App.currentLang);
                 localStorage.setItem("tahara_darkMode", App.isDark);
 
                 updateStatusUI();
-                renderHistory();
+                renderFullInsights(); // CHANGED
                 updateLiveCounter();
             }
         );
@@ -1141,7 +1049,7 @@
         // Add this inside init():
         NotificationManager.init();
 
-        if (el("settingsBtn")) el("settingsBtn").onclick = openSettings;
+        switchTab('home');
         if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
         if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
         if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
@@ -1172,14 +1080,17 @@
         }
 
         updateStatusUI();
-        renderHistory();
         updateLiveCounter();
         setInterval(() => {
             updateLiveCounter();
             NotificationManager.checkWebFallback();
         }, 1000);
-        checkVersion();
+        await checkVersion();
         el("mainActionBtn").onclick = toggleStatus;
+        if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
+
+        // Make sure to populate the history list on launch
+        renderFullInsights();
         // 1. Update during initial load
         document.querySelector('meta[name="theme-color"]').setAttribute('content', App.isDark ? '#1a1617' : '#fff1f2');
         // 2. Update inside the toggle listener
@@ -1207,7 +1118,6 @@
                     : S("play_store_get_label");
             }
         }
-        if (el("fastingBtn")) el("fastingBtn").onclick = openFasting;
         if (langSel) langSel.onchange = (e) => {
             const newLang = e.target.value;
             localStorage.setItem("tahara_userLang", newLang);
@@ -1218,7 +1128,6 @@
             location.reload();
         };
 
-        initDragToDismiss();
         initNativeFeatures();
         setTimeout(checkInstall, 3000);
     }

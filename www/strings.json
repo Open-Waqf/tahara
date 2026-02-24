@@ -95,7 +95,11 @@
     "reminder_time": "Reminder Time",
     "reminder_desc": "Get a local notification to log your daily wellness.",
     "notif_title": "Tahara Check-in",
-    "notif_body": "Don't forget to log your mood and symptoms today."
+    "notif_body": "Don't forget to log your mood and symptoms today.",
+    "tab_home": "Home",
+    "tab_calendar": "Calendar",
+    "tab_history": "History",
+    "tab_settings": "Settings"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -188,7 +192,11 @@
     "reminder_desc": "احصلي على إشعار محلي لتسجيل حالتك اليومية.",
     "notif_title": "تفقد طهارة اليومي",
     "notif_body": "لا تنسي تسجيل حالتك المزاجية والأعراض اليوم.",
-    "notif_denied": "تم رفض إذن الإشعارات."
+    "notif_denied": "تم رفض إذن الإشعارات.",
+    "tab_home": "الرئيسية",
+    "tab_calendar": "التقويم",
+    "tab_history": "السجل",
+    "tab_settings": "الإعدادات"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -281,7 +289,11 @@
     "reminder_desc": "Recevez une notification locale pour noter votre bien-être quotidien.",
     "notif_title": "Check-in Tahara",
     "notif_body": "N'oubliez pas d'enregistrer votre humeur et vos symptômes aujourd'hui.",
-    "notif_denied": "L'autorisation de notification a été refusée."
+    "notif_denied": "L'autorisation de notification a été refusée.",
+    "tab_home": "Accueil",
+    "tab_calendar": "Calendrier",
+    "tab_history": "Historique",
+    "tab_settings": "Paramètres"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -374,7 +386,11 @@
     "reminder_desc": "Recibe una notificación local para registrar tu bienestar diario.",
     "notif_title": "Check-in Tahara",
     "notif_body": "No olvides registrar tu estado de ánimo y síntomas hoy.",
-    "notif_denied": "El permiso de notificación fue denegado."
+    "notif_denied": "El permiso de notificación fue denegado.",
+    "tab_home": "Inicio",
+    "tab_calendar": "Calendario",
+    "tab_history": "Historial",
+    "tab_settings": "Ajustes"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -467,6 +483,10 @@
     "reminder_desc": "Ricevi una notifica locale per registrare il tuo benessere quotidiano.",
     "notif_title": "Check-in Tahara",
     "notif_body": "Non dimenticare di registrare il tuo umore e i sintomi oggi.",
-    "notif_denied": "Il permesso per le notifiche è stato negato."
+    "notif_denied": "Il permesso per le notifiche è stato negato.",
+    "tab_home": "Home",
+    "tab_calendar": "Calendario",
+    "tab_history": "Cronologia",
+    "tab_settings": "Impostazioni"
   }
 }
