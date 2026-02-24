@@ -983,20 +983,24 @@ import {TaharaEngine} from './engine.js';
 
     // 1. NEW: SEO Updater Function
     function updateSEO() {
-        // Update Title
         document.title = S("app_title");
 
-        // Update Description
         const descMeta = document.querySelector('meta[name="description"]');
         if (descMeta) descMeta.setAttribute("content", S("app_desc"));
 
-        // Update Keywords
         const keysMeta = document.querySelector('meta[name="keywords"]');
         if (keysMeta) keysMeta.setAttribute("content", S("app_keywords"));
 
-        // Update HTML Lang/Dir attributes
         document.documentElement.lang = App.currentLang;
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
+
+        // NEW F2: Update Canonical URL dynamically
+        const canonicalUrl = el("canonicalUrl");
+        if (canonicalUrl) {
+            const baseUrl = "https://tahara.open-waqf.org/";
+            // Default to base URL for English, otherwise append the language parameter
+            canonicalUrl.href = App.currentLang === "en" ? baseUrl : `${baseUrl}?lang=${App.currentLang}`;
+        }
     }
 
     // ==========================================
