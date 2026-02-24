@@ -121,7 +121,13 @@
     "aria_add_paid": "Add made up fast",
     "aria_remove_paid": "Remove made up fast",
     "aria_close": "Close",
-    "announce_status": "Status changed to"
+    "announce_status": "Status changed to",
+    "empty_averages": "Log 2 cycles to calculate",
+    "toast_status_saved": "Status updated successfully",
+    "toast_entry_deleted": "Entry removed",
+    "toast_data_cleared": "All data reset",
+    "toast_backup_success": "Backup saved successfully",
+    "tab_fasting": "Fasting"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -240,7 +246,13 @@
     "aria_add_paid": "إضافة صيام مقضي",
     "aria_remove_paid": "إزالة صيام مقضي",
     "aria_close": "إغلاق",
-    "announce_status": "تم تغيير الحالة إلى"
+    "announce_status": "تم تغيير الحالة إلى",
+    "empty_averages": "سجلي دورتين للحساب",
+    "toast_status_saved": "تم تحديث الحالة بنجاح",
+    "toast_entry_deleted": "تم إزالة الإدخال",
+    "toast_data_cleared": "تم إعادة ضبط جميع البيانات",
+    "toast_backup_success": "تم حفظ النسخة الاحتياطية بنجاح",
+    "tab_fasting": "الصيام"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -359,7 +371,13 @@
     "aria_add_paid": "Ajouter un jeûne rattrapé",
     "aria_remove_paid": "Retirer un jeûne rattrapé",
     "aria_close": "Fermer",
-    "announce_status": "Statut changé en"
+    "announce_status": "Statut changé en",
+    "empty_averages": "Notez 2 cycles pour calculer",
+    "toast_status_saved": "Statut mis à jour avec succès",
+    "toast_entry_deleted": "Entrée supprimée",
+    "toast_data_cleared": "Toutes les données réinitialisées",
+    "toast_backup_success": "Sauvegarde effectuée avec succès",
+    "tab_fasting": "Jeûne"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -478,7 +496,13 @@
     "aria_add_paid": "Añadir ayuno recuperado",
     "aria_remove_paid": "Quitar ayuno recuperado",
     "aria_close": "Cerrar",
-    "announce_status": "Estado cambiado a"
+    "announce_status": "Estado cambiado a",
+    "empty_averages": "Registra 2 ciclos para calcular",
+    "toast_status_saved": "Estado actualizado con éxito",
+    "toast_entry_deleted": "Entrada eliminada",
+    "toast_data_cleared": "Todos los datos restablecidos",
+    "toast_backup_success": "Copia de seguridad guardada con éxito",
+    "tab_fasting": "Ayuno"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -597,6 +621,12 @@
     "aria_add_paid": "Aggiungi digiuno recuperato",
     "aria_remove_paid": "Rimuovi digiuno recuperato",
     "aria_close": "Chiudi",
-    "announce_status": "Stato cambiato in"
+    "announce_status": "Stato cambiato in",
+    "empty_averages": "Registra 2 cicli per calcolare",
+    "toast_status_saved": "Stato aggiornato con successo",
+    "toast_entry_deleted": "Voce rimossa",
+    "toast_data_cleared": "Tutti i dati ripristinati",
+    "toast_backup_success": "Backup salvato con successo",
+    "tab_fasting": "Digiuno"
   }
 }

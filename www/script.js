@@ -19,6 +19,30 @@
         avgHaydLength: 0
     };
 
+    // ==========================================
+    // MICRO-INTERACTIONS & TOASTS (B6)
+    // ==========================================
+    window.showToast = (messageKey, type = 'success', fallback = "Success") => {
+        const container = el("toast-container");
+        if (!container) return;
+
+        const toast = document.createElement("div");
+        const bgClass = type === 'success' ? 'bg-emerald-500' : (type === 'error' ? 'bg-rose-500' : 'bg-slate-800 dark:bg-slate-200');
+        const textClass = type === 'neutral' ? 'text-white dark:text-slate-900' : 'text-white';
+
+        toast.className = `px-4 py-2 rounded-full shadow-lg text-xs font-bold tracking-wide animate-fade-in ${bgClass} ${textClass}`;
+        toast.innerText = S(messageKey, fallback); // SAFE FALLBACK ADDED
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(10px)';
+            toast.style.transition = 'all 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    };
+
     let pendingImportData = null;
 
     const el = (id) => document.getElementById(id);
@@ -337,24 +361,35 @@
     // 3. CORE LOGIC (Stats & Context)
     // ==========================================
     function calculateStats() {
-        // 1. Delegate math to the engine
         const {avgCycleLengthMs, avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history);
         App.avgCycleLength = avgCycleLengthMs;
         App.avgHaydLength = avgHaydLengthMs;
 
-        // 2. Update UI
         const unit = S("unit_days", "d");
         const toDays = (ms) => Math.round(ms / 86400000) + unit;
 
-        if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
-        if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
+        // B5: EMPTY STATE LOGIC
+        const haydCount = App.history.filter(e => e.status === 'hayd').length;
 
-        // 3. Delegate prediction to the engine
-        const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
-        if (predStart && el("nextPeriodText")) {
-            el("nextPeriodText").innerText = predStart.toLocaleDateString(App.currentLang, {
-                weekday: 'short', month: 'short', day: 'numeric'
-            });
+        if (haydCount < 2) {
+            // Not enough data yet
+            const emptyMsg = `<span class="text-[10px] font-normal text-rose-400/70 dark:text-rose-300/60">${S("empty_averages")}</span>`;
+            if (el("avgCycleText")) el("avgCycleText").innerHTML = emptyMsg;
+            if (el("avgPurityText")) el("avgPurityText").innerHTML = emptyMsg.replace("text-rose-400/70", "text-amber-600/70").replace("dark:text-rose-300/60", "dark:text-amber-400/60");
+            if (el("nextPeriodText")) el("nextPeriodText").innerText = "--";
+        } else {
+            // We have data!
+            if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
+            if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
+
+            const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
+            if (predStart && el("nextPeriodText")) {
+                el("nextPeriodText").innerText = predStart.toLocaleDateString(App.currentLang, {
+                    weekday: 'short', month: 'short', day: 'numeric'
+                });
+            } else {
+                if (el("nextPeriodText")) el("nextPeriodText").innerText = "--";
+            }
         }
     }
 
@@ -622,6 +657,7 @@
         const statusLabel = App.status === "purity" ? S("status_purity") : S("status_hayd");
         window.announce(`${S("announce_status")} ${statusLabel}`);
         renderFullInsights();
+        showToast("toast_status_saved", "success", "Status updated");
         updateLiveCounter();
     }
 
@@ -729,6 +765,7 @@
         localStorage.setItem("tahara_last_backup", new Date().toISOString());
         // Re-render settings to hide the reminder dot immediately
         updateSettingsUI(); // FIXED
+        showToast("toast_backup_success", "success", "Backup saved");
     }
 
     function importData() {
@@ -906,7 +943,8 @@
                 }
                 saveState();
                 updateStatusUI();
-                renderFullInsights(); // CHANGED
+                renderFullInsights();
+                showToast("toast_entry_deleted", "neutral", "Entry removed");
                 updateLiveCounter();
             }
         );
@@ -929,9 +967,18 @@
                 localStorage.setItem("tahara_userLang", App.currentLang);
                 localStorage.setItem("tahara_darkMode", App.isDark);
 
+                // FIXED: Explicitly save the new empty state to storage
+                saveState();
+                saveFasting();
+
+                // Refresh the UI
                 updateStatusUI();
-                renderFullInsights(); // CHANGED
+                renderFullInsights();
+                updateSettingsUI(); // Ensure warning dots reset
                 updateLiveCounter();
+
+                // Show the toast safely
+                showToast("toast_data_cleared", "error", "All data reset");
             }
         );
     }
@@ -1211,7 +1258,7 @@
             const newUrl = new URL(window.location);
             newUrl.searchParams.set('lang', newLang);
             window.history.pushState({}, '', newUrl);
-            translateUI();
+            location.reload();
         };
 
         initNativeFeatures();

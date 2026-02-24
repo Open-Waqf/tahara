@@ -214,3 +214,7 @@ input:focus-visible {
     white-space: nowrap;
     border-width: 0;
 }
+
+html[dir="rtl"] * {
+    letter-spacing: normal !important;
+}
