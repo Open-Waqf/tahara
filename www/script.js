@@ -1273,36 +1273,33 @@
     function initServiceWorker() {
         if (!("serviceWorker" in navigator)) return;
 
-        // Skip for Native App
-        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-            return;
-        }
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) return;
 
-        // Register immediately (Don't wait for "load" event, we are already loaded)
-        navigator.serviceWorker
-            .register("sw.js")
-            .then((reg) => {
-                console.log("✅ Service Worker Registered!", reg);
+        navigator.serviceWorker.register("sw.js").then((reg) => {
+            console.log("✅ Service Worker Registered!");
 
-                // Handler for "Skip Waiting"
-                if (reg.waiting) {
-                    reg.waiting.postMessage({type: 'SKIP_WAITING'});
-                }
+            if (reg.waiting) reg.waiting.postMessage({type: 'SKIP_WAITING'});
 
-                // Listen for updates
-                reg.addEventListener("updatefound", () => {
-                    const newWorker = reg.installing;
-                    newWorker.addEventListener("statechange", () => {
-                        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                            console.log("🔄 New version available!");
-                            window.location.reload();
+            reg.addEventListener("updatefound", () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener("statechange", () => {
+                    if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                        // FIXED (C1): Don't force reload. Show a friendly prompt instead.
+                        const container = el("toast-container");
+                        if (container) {
+                            const updateHtml = `
+                                <div class="px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold animate-fade-in bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 w-full flex justify-between items-center border border-slate-700 dark:border-white/20">
+                                    <span>${S("update_available", "Update available!")}</span>
+                                    <button onclick="window.location.reload()" class="bg-rose-500 text-white px-3 py-1 rounded-full shadow-md active:scale-95 transition-transform">${S("btn_refresh", "Refresh")}</button>
+                                </div>
+                            `;
+                            container.innerHTML += updateHtml;
                         }
-                    });
+                    }
                 });
-            })
-            .catch((err) => console.error("❌ SW Registration Failed:", err));
+            });
+        }).catch((err) => console.error("❌ SW Registration Failed:", err));
 
-        // Refresher logic
         let refreshing = false;
         navigator.serviceWorker.addEventListener("controllerchange", () => {
             if (!refreshing) {
