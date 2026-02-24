@@ -1,19 +1,20 @@
-# Tahara (طهارة) - Islamic Purity Tracker
+# Tahara (طهارة) - Private Islamic Purity Tracker
 
-Tahara is a privacy-focused, offline-first Progressive Web App (PWA) designed to help Muslim women track their purity
-states (Hayd/Tuhr) and determine Salah/Fasting eligibility with certainty.
+Tahara is a professional-grade, privacy-focused, offline-first Progressive Web App (PWA) designed to help Muslim women
+track their purity states (Hayd/Tuhr) and determine Salah/Fasting eligibility with precision and security.
 
-[Image of Calendar Interface]
+## 🌟 Key Features
 
-## 🌟 Features
-
-* **100% Private:** All data lives on your device. No cloud, no tracking, no servers.
-* **Fiqh Intelligence:** * Automatically detects **Istihadah** based on duration (10 days for Hanafi, 15 for Shafi'i).
-    * Provides context-aware advice (e.g., "It is afternoon, pray Zuhr & Asr").
-* **Ramadan Ledger:** A dedicated "Debt Tracker" for missed fasts (Qada) during Ramadan.
-* **Cycle Prediction:** Estimates the next expected start date based on historical averages.
-* **Visual Calendar:** A clear, 3-color system (Purity, Hayd, Transition) to visualize history.
-* **Backup & Restore:** JSON-based export to keep data safe or move to a new device.
+* **🔒 100% Private:** No cloud, no analytics, no servers. Your health data never leaves your device.
+* **⚖️ Fiqh-Aware Engine:** * **Logic-Based Detection:** Identifies **Istihadah** based on duration thresholds (e.g., 10
+  days Hanafi / 15 days Shafi'i).
+    * **Contextual Guidance:** Real-time advice based on current time and state (e.g., "Pray Zuhr & Asr before
+      Maghrib").
+* **🌙 Ramadan Ledger:** A dedicated tracker for missed fasts (Qada) and payment progress.
+* **📊 Cycle Insights:** Automated calculation of average cycle/hayd length and future cycle predictions.
+* **🗓️ Daily Health Logs:** Track moods and physical symptoms linked to your cycle.
+* **🛡️ Hardened Security:** Strict Content Security Policy (CSP), input validation, and secure JSON data migrations.
+* **🌍 Multi-lingual:** Full RTL support for Arabic, plus English, French, Spanish, and Italian.
 
 ## 🛠️ Tech Stack
 
@@ -22,7 +23,37 @@ states (Hayd/Tuhr) and determine Salah/Fasting eligibility with certainty.
 * **Storage:** LocalStorage (Persistence).
 * **Platform:** Progressive Web App (PWA) + Capacitor (Android/iOS).
 
-## 🚀 Getting Started
+## 🛠️ Technical Details
+
+### Performance & Performance Budgets
+
+Tahara is optimized for low-end devices. We enforce a **35kB JS budget** and a **20kB CSS budget** via automated CI
+checks. Critical path rendering is prioritized, with heavy features lazy-loaded.
+
+### Automated Testing
+
+* **Unit Tests (Vitest):** Core Fiqh logic and engine math are verified for accuracy.
+* **E2E Tests (Playwright):** Full user journeys (onboarding, logging, settings) are tested in real browser
+  environments.
+
+### Hardened Security
+
+Tahara implements a strict CSP that prohibits `unsafe-inline` scripts, protecting against XSS attacks. All data imports
+undergo a strict validation layer before being committed to storage.
+
+### Core Pillars
+
+* **State Management**: The App object is the single source of truth. On every change, we run saveState() which mirrors
+  the App object into localStorage.
+* **Fiqh Engine**: All calculations are "pure functions" located in engine.js. This makes the logic testable with Vitest
+  without needing a browser environment.
+* **UI Updates**: We use a "Render-on-Change" pattern. When data changes, we manually call functions like
+  updateStatusUI() or renderCalendar() to sync the DOM.
+* **Security Layer**: * CSP: A strict policy blocks all inline scripts.
+* **Validation**: Data imports are sanitized and type-checked.
+* **Privacy**: No external APIs or CDNs are used for data processing.
+
+## 🚀 Development & Build
 
 ### Prerequisites
 
@@ -41,6 +72,26 @@ states (Hayd/Tuhr) and determine Salah/Fasting eligibility with certainty.
 2. Sync the web assets: `npx cap sync`
 3. Open Android Studio: `npx cap open android`
 4. Build -> Build Bundle(s) / APK(s) -> Build APK.
+
+### Build Styles (Tailwind v4)
+
+```bash
+npm run build
+
+```
+
+### Running Tests
+
+```bash
+npm run test:unit  # Run logic tests
+npm run test:e2e   # Run UI tests (requires Playwright)
+
+```
+
+## 📦 Distribution
+
+* **Web:** Hosted on GitHub Pages via the `deploy` branch.
+* **Android:** Capacitor-ready for native APK generation.
 
 ## 🔒 Privacy Policy
 

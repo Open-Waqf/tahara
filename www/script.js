@@ -21,6 +21,42 @@ import {TaharaEngine} from './engine.js';
         avgHaydLength: 0
     };
 
+    // E3: Local Error Logger
+    const ErrorLog = {
+        logs: [],
+        add(err) {
+            const entry = {time: new Date().toISOString(), message: err.message, stack: err.stack};
+            this.logs.push(entry);
+            // Keep only last 20 errors
+            if (this.logs.length > 20) this.logs.shift();
+            console.error("Tahara Error Catch:", err);
+        }
+    };
+
+    // Catch global unhandled errors
+    window.onerror = (msg, url, line, col, error) => {
+        ErrorLog.add(error || {message: msg});
+        return false;
+    };
+
+    // Add this function to your Settings logic
+    window.exportDiagnostics = () => {
+        const diagnosticData = {
+            app_version: el("appVersion")?.innerText || "Unknown",
+            platform: navigator.userAgent,
+            language: App.currentLang,
+            error_history: ErrorLog.logs,
+            // We do NOT export history/logs here to protect PII privacy
+        };
+        const blob = new Blob([JSON.stringify(diagnosticData, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
+    };
+
     // ==========================================
     // MICRO-INTERACTIONS & TOASTS (B6)
     // ==========================================
@@ -384,7 +420,7 @@ import {TaharaEngine} from './engine.js';
 
             let bgClass = "", textClass = "", borderClass = "";
             let cursorClass = isFuture ? "cursor-default opacity-40" : "cursor-pointer";
-            let clickAttr = isFuture ? "" : `onclick="selectDate('${dateKey}')"`;
+            let clickAttr = isFuture ? "" : `data-date="${dateKey}"`;
 
             if (isPredicted) {
                 bgClass = "bg-transparent";
@@ -453,7 +489,7 @@ import {TaharaEngine} from './engine.js';
             const baseClass = "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border";
             const activeClass = "bg-rose-500 text-white border-rose-500 shadow-sm";
             const inactiveClass = "bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/10 hover:border-rose-300";
-            return `<button onclick="toggleLog('${key}')" class="${baseClass} ${isActive ? activeClass : inactiveClass}">${S(key)}</button>`;
+            return `<button data-log="${key}" class="${baseClass} ${isActive ? activeClass : inactiveClass}">${S(key)}</button>`;
         };
 
         moodsDiv.innerHTML = TAGS.moods.map(createTag).join('');
@@ -727,20 +763,22 @@ import {TaharaEngine} from './engine.js';
     window.showInfoModal = (titleKey, messageKey) => {
         const modalHtml = `
             <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customInfoModal" style="z-index: 99999;">
-                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeInfoModal()"></div>
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
                 <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">
-                    <div class="w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">
-                        ℹ️
-                    </div>
+                    <div class="w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">ℹ️</div>
                     <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
-                    <button onclick="closeInfoModal()" data-i18n-aria="aria_close" class="w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>
+                    <button data-i18n-aria="aria_close" class="modal-close-btn w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>
                 </div>
             </div>
         `;
         const container = document.createElement("div");
         container.innerHTML = modalHtml;
         document.body.appendChild(container);
+
+        // Bind events after adding to DOM
+        container.querySelector('.modal-backdrop').addEventListener('click', closeInfoModal);
+        container.querySelector('.modal-close-btn').addEventListener('click', closeInfoModal);
     };
 
     window.closeInfoModal = () => {
@@ -751,16 +789,14 @@ import {TaharaEngine} from './engine.js';
     function showConfirmModal(titleKey, messageKey, confirmBtnKey, onConfirmCallback) {
         const modalHtml = `
             <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customConfirmModal" style="z-index: 99999;">
-                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeConfirmModal()"></div>
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
                 <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">
-                    <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">
-                        ⚠️
-                    </div>
+                    <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">⚠️</div>
                     <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
                     <div class="flex gap-2">
-                        <button onclick="closeConfirmModal()" data-i18n-aria="aria_close" class="flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>
-                        <button id="confirmActionBtn" class="flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95">${S(confirmBtnKey)}</button>
+                        <button data-i18n-aria="aria_close" class="modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>
+                        <button class="modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95">${S(confirmBtnKey)}</button>
                     </div>
                 </div>
             </div>
@@ -769,10 +805,13 @@ import {TaharaEngine} from './engine.js';
         container.innerHTML = modalHtml;
         document.body.appendChild(container);
 
-        document.getElementById("confirmActionBtn").onclick = () => {
+        // Bind events
+        container.querySelector('.modal-backdrop').addEventListener('click', closeConfirmModal);
+        container.querySelector('.modal-cancel-btn').addEventListener('click', closeConfirmModal);
+        container.querySelector('.modal-confirm-btn').addEventListener('click', () => {
             closeConfirmModal();
             onConfirmCallback();
-        };
+        });
     }
 
     window.closeConfirmModal = () => {
@@ -788,7 +827,7 @@ import {TaharaEngine} from './engine.js';
 
         const previewHtml = `
             <div class="fixed inset-0 flex items-center justify-center p-4" id="restorePreviewContainer" style="z-index: 99999;">
-                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="cancelRestore()"></div>
+                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
                 <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30">
                     <h2 class="text-xl font-serif italic text-rose-500 mb-2">${S("preview_restore", "Preview Restore")}</h2>
                     <p class="text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30">
@@ -813,8 +852,8 @@ import {TaharaEngine} from './engine.js';
                         </li>
                     </ul>
                     <div class="flex gap-3">
-                        <button onclick="cancelRestore()" class="flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5">${S("btn_cancel", "Cancel")}</button>
-                        <button onclick="confirmRestore()" class="flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30">${S("btn_confirm_restore", "Confirm Restore")}</button>
+                        <button class="modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5">${S("btn_cancel", "Cancel")}</button>
+                        <button class="modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30">${S("btn_confirm_restore", "Confirm Restore")}</button>
                     </div>
                 </div>
             </div>
@@ -822,6 +861,11 @@ import {TaharaEngine} from './engine.js';
         const container = document.createElement("div");
         container.innerHTML = previewHtml;
         document.body.appendChild(container);
+
+        // CSP Hardening: Bind events securely
+        container.querySelector('.modal-backdrop').addEventListener('click', window.cancelRestore);
+        container.querySelector('.modal-cancel-btn').addEventListener('click', window.cancelRestore);
+        container.querySelector('.modal-confirm-btn').addEventListener('click', window.confirmRestore);
     }
 
     window.cancelRestore = () => {
@@ -832,6 +876,16 @@ import {TaharaEngine} from './engine.js';
 
     window.confirmRestore = () => {
         if (!pendingImportData) return;
+
+        const d = pendingImportData;
+        const isValidStatus = ["purity", "hayd"].includes(d.tahara_status);
+        const hasHistory = Array.isArray(d.tahara_history);
+
+        if (!isValidStatus || !hasHistory) {
+            showToast("import_error", "error", "Invalid data format");
+            window.cancelRestore();
+            return;
+        }
 
         App.status = pendingImportData.tahara_status;
         App.lastChanged = pendingImportData.tahara_last_changed;
@@ -983,24 +1037,50 @@ import {TaharaEngine} from './engine.js';
 
     // 1. NEW: SEO Updater Function
     function updateSEO() {
-        document.title = S("app_title");
+        document.title = S("app_title", "Tahara");
 
         const descMeta = document.querySelector('meta[name="description"]');
-        if (descMeta) descMeta.setAttribute("content", S("app_desc"));
+        if (descMeta) descMeta.setAttribute("content", S("app_desc", "A private, offline-first Islamic Purity tracker."));
 
         const keysMeta = document.querySelector('meta[name="keywords"]');
-        if (keysMeta) keysMeta.setAttribute("content", S("app_keywords"));
+        if (keysMeta) keysMeta.setAttribute("content", S("app_keywords", "Tahara, Islamic Purity, Salah Tracker"));
 
         document.documentElement.lang = App.currentLang;
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
 
-        // NEW F2: Update Canonical URL dynamically
+        // Update Canonical URL dynamically
         const canonicalUrl = el("canonicalUrl");
         if (canonicalUrl) {
             const baseUrl = "https://tahara.open-waqf.org/";
-            // Default to base URL for English, otherwise append the language parameter
             canonicalUrl.href = App.currentLang === "en" ? baseUrl : `${baseUrl}?lang=${App.currentLang}`;
         }
+
+        // NEW: Inject Structured Data securely (Fixes CSP error)
+        let ldJson = el("structured-data-script");
+        if (!ldJson) {
+            ldJson = document.createElement('script');
+            ldJson.type = 'application/ld+json';
+            ldJson.id = 'structured-data-script';
+            document.head.appendChild(ldJson);
+        }
+
+        ldJson.textContent = JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": S("app_title", "Tahara"),
+            "applicationCategory": "HealthApplication",
+            "operatingSystem": "Android, iOS, Web",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "description": S("app_desc", "A private, offline-first Islamic Purity tracker."),
+            "author": {
+                "@type": "Organization",
+                "name": "Open Waqf"
+            }
+        });
     }
 
     // ==========================================
@@ -1115,16 +1195,63 @@ import {TaharaEngine} from './engine.js';
         updateStatusUI();
         updateLiveCounter();
 
-        // Critical Listeners
-        if (el("mainActionBtn")) el("mainActionBtn").onclick = toggleStatus;
-        if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
-        if (el("themeToggle")) el("themeToggle").onclick = () => {
+        // --- EVENT LISTENERS ---
+        // Core Actions
+        const bindClick = (id, fn) => {
+            const e = el(id);
+            if (e) e.addEventListener('click', fn);
+        };
+
+        bindClick("mainActionBtn", toggleStatus);
+        bindClick("undoBtn", deleteLastEntry);
+        bindClick("themeToggle", () => {
             App.isDark = !App.isDark;
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
             document.querySelector('meta[name="theme-color"]').setAttribute('content', App.isDark ? '#1a1617' : '#fff1f2');
             initNativeFeatures();
+        });
+
+        // Bottom Navigation
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.currentTarget.getAttribute('data-target');
+                if (target) switchTab(target);
+            });
+        });
+
+        // Fasting Buttons
+        bindClick("btnMissedAdd", () => updateDebt(1));
+        bindClick("btnMissedSub", () => updateDebt(-1));
+        bindClick("btnPaidAdd", () => updatePaid(1));
+        bindClick("btnPaidSub", () => updatePaid(-1));
+
+        // Calendar Controls
+        bindClick("btnPrevMonth", () => changeMonth(-1));
+        bindClick("btnNextMonth", () => changeMonth(1));
+        bindClick("btnInfoCycle", () => showInfoModal('avg_cycle', 'explainer_cycle'));
+        bindClick("btnInfoPurity", () => showInfoModal('avg_purity', 'explainer_purity'));
+
+        // Overlays & Settings
+        bindClick("btnDismissInstall", dismissInstall);
+        bindClick("btnSkipOnboarding", skipOnboarding);
+        bindClick("onbNextBtn", nextOnboardingStep);
+        bindClick("btnReplayOnboarding", startOnboarding);
+
+        // --- Dynamic Event Delegation (Calendar & Logs) ---
+        if (el("calendarDays")) {
+            el("calendarDays").addEventListener('click', (e) => {
+                const dayEl = e.target.closest('[data-date]');
+                if (dayEl) selectDate(dayEl.getAttribute('data-date'));
+            });
+        }
+
+        const handleLogClick = (e) => {
+            const btn = e.target.closest('[data-log]');
+            if (btn) toggleLog(btn.getAttribute('data-log'));
         };
+        if (el("moodOptions")) el("moodOptions").addEventListener('click', handleLogClick);
+        if (el("symptomOptions")) el("symptomOptions").addEventListener('click', handleLogClick);
 
         if (langSel) langSel.onchange = (e) => {
             const newLang = e.target.value;
@@ -1146,6 +1273,7 @@ import {TaharaEngine} from './engine.js';
             if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
             if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
             if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
+            if (el("settingsDiagnosticBtn")) el("settingsDiagnosticBtn").onclick = exportDiagnostics;
 
             // Bind Contact button
             const contactBtn = el("contactBtn");
@@ -1211,13 +1339,14 @@ import {TaharaEngine} from './engine.js';
                         // FIXED (C1): Don't force reload. Show a friendly prompt instead.
                         const container = el("toast-container");
                         if (container) {
-                            const updateHtml = `
-                                <div class="px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold animate-fade-in bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 w-full flex justify-between items-center border border-slate-700 dark:border-white/20">
-                                    <span>${S("update_available", "Update available!")}</span>
-                                    <button onclick="window.location.reload()" class="bg-rose-500 text-white px-3 py-1 rounded-full shadow-md active:scale-95 transition-transform">${S("btn_refresh", "Refresh")}</button>
-                                </div>
+                            const toast = document.createElement("div");
+                            toast.className = "px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold animate-fade-in bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 w-full flex justify-between items-center border border-slate-700 dark:border-white/20";
+                            toast.innerHTML = `
+                                <span>${S("update_available", "Update available!")}</span>
+                                <button class="bg-rose-500 text-white px-3 py-1 rounded-full shadow-md active:scale-95 transition-transform">${S("btn_refresh", "Refresh")}</button>
                             `;
-                            container.innerHTML += updateHtml;
+                            container.appendChild(toast);
+                            toast.querySelector('button').addEventListener('click', () => window.location.reload());
                         }
                     }
                 });

@@ -130,7 +130,10 @@
     "tab_fasting": "Fasting",
     "update_available": "Update available!",
     "btn_refresh": "Refresh",
-    "last_logged": "Last logged:"
+    "last_logged": "Last logged:",
+    "settings_diagnostic_title": "Export Diagnostics",
+    "settings_diagnostic_desc": "Technical logs for troubleshooting.",
+    "toast_diagnostic_exported": "Diagnostic log saved locally."
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -258,7 +261,10 @@
     "tab_fasting": "الصيام",
     "update_available": "تحديث متاح!",
     "btn_refresh": "تحديث",
-    "last_logged": "آخر تسجيل:"
+    "last_logged": "آخر تسجيل:",
+    "settings_diagnostic_title": "تصدير بيانات التشخيص",
+    "settings_diagnostic_desc": "سجلات تقنية لاستكشاف الأخطاء وإصلاحها.",
+    "toast_diagnostic_exported": "تم حفظ سجل التشخيص محلياً."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -386,7 +392,10 @@
     "tab_fasting": "Jeûne",
     "update_available": "Mise à jour disponible !",
     "btn_refresh": "Actualiser",
-    "last_logged": "Dernier enregistrement :"
+    "last_logged": "Dernier enregistrement :",
+    "settings_diagnostic_title": "Exporter les diagnostics",
+    "settings_diagnostic_desc": "Journaux techniques pour le dépannage.",
+    "toast_diagnostic_exported": "Journal de diagnostic enregistré localement."
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -514,7 +523,10 @@
     "tab_fasting": "Ayuno",
     "update_available": "¡Actualización disponible!",
     "btn_refresh": "Actualizar",
-    "last_logged": "Último registro:"
+    "last_logged": "Último registro:",
+    "settings_diagnostic_title": "Exportar diagnósticos",
+    "settings_diagnostic_desc": "Registros técnicos para resolución de problemas.",
+    "toast_diagnostic_exported": "Registro de diagnóstico guardado localmente."
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -642,6 +654,9 @@
     "tab_fasting": "Digiuno",
     "update_available": "Aggiornamento disponibile!",
     "btn_refresh": "Aggiorna",
-    "last_logged": "Ultimo registro:"
+    "last_logged": "Ultimo registro:",
+    "settings_diagnostic_title": "Esporta diagnostica",
+    "settings_diagnostic_desc": "Log tecnici per la risoluzione dei problemi.",
+    "toast_diagnostic_exported": "Registro diagnostico salvato localmente."
   }
 }

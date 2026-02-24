@@ -49,7 +49,7 @@ test.describe('Tahara E2E UX Paths', () => {
         await page.locator('#undoBtn').click();
 
         // 3. Confirm the deletion in the modal
-        const confirmBtn = page.locator('#confirmActionBtn');
+        const confirmBtn = page.locator('.modal-confirm-btn');
         await expect(confirmBtn).toBeVisible();
         await confirmBtn.click();
 
