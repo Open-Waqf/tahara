@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build, Test, and Deploy
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  deploy:
+  pipeline:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source
@@ -19,12 +19,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm' # ⚡ INSTANT NPM CACHING
 
       - name: Install Project Dependencies
         run: npm ci
 
+      # --- 1. TESTING STAGE ---
+      - name: Run Unit Tests (Vitest)
+        run: npm run test:unit
+
+      - name: Cache Playwright Browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install Playwright Browsers (If no cache)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install OS Dependencies (If cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Run E2E Tests (Playwright)
+        run: npm run test:e2e
+
+      # --- 2. BUILD & OPTIMIZE STAGE ---
       - name: Build Tailwind CSS
         run: npm run build
+
+      - name: Check Performance Budget
+        run: npm run size
 
       - name: Install Cleaning Tools
         run: npm install -g terser clean-css-cli
@@ -35,12 +62,7 @@ jobs:
           terser www/sw.js --no-compress --no-mangle --format beautify=true,comments=false -o www/sw.js
           cleancss --format beautify www/style.css -o www/style.css
 
-      - name: Check Performance Budget
-        run: npm run size
-
-      - name: Run Unit Tests
-        run: npm run test
-
+      # --- 3. DEPLOY STAGE ---
       - name: Deploy to Deploy Branch
         uses: JamesIves/github-pages-deploy-action@v4
         with:

@@ -9,8 +9,9 @@
     "watch:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
     "build": "npm run build:css",
     "size": "size-limit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test:unit": "vitest run --exclude tests/**",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit && npm run test:e2e"
   },
   "size-limit": [
     {
@@ -40,7 +41,9 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.0.2",
+    "@playwright/test": "1.58.2",
     "@size-limit/file": "^11.1.0",
+    "serve": "14.2.5",
     "size-limit": "^11.1.0",
     "vitest": "4.0.18"
   }
