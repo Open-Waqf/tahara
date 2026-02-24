@@ -1,17 +1,30 @@
 {
   "name": "tahara",
-  "version": "1.0.1",
-  "description": "",
+  "version": "1.5.0",
+  "description": "Private Islamic Purity Tracker",
   "main": "index.js",
   "scripts": {
-    "dev": "npx tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
+    "dev": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
     "build:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --minify",
     "watch:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
     "build": "npm run build:css",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "size": "size-limit"
   },
-  "keywords": [],
-  "author": "",
+  "size-limit": [
+    {
+      "path": "www/script.js",
+      "limit": "35 kB"
+    },
+    {
+      "path": "www/compiled.css",
+      "limit": "20 kB"
+    },
+    {
+      "path": "www/index.html",
+      "limit": "25 kB"
+    }
+  ],
+  "author": "Open Waqf Org",
   "license": "Polyform-Noncommercial-1.0.0",
   "type": "commonjs",
   "dependencies": {
@@ -24,6 +37,8 @@
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.0.2"
+    "@capacitor/cli": "^8.0.2",
+    "@size-limit/file": "^11.1.0",
+    "size-limit": "^11.1.0"
   }
 }

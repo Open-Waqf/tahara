@@ -1139,51 +1139,36 @@
     }
 
     async function init() {
+        // --- 1. CRITICAL PATH (Blocks UI until done) ---
         try {
             const res = await fetch("strings.json");
             const raw = await res.json();
             App.globalStrings = raw['default'] || {};
+
+            // Check URL for language param first
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlLang = urlParams.get('lang');
+            if (urlLang && ['en', 'ar', 'fr', 'es', 'it'].includes(urlLang)) {
+                App.currentLang = urlLang;
+                localStorage.setItem("tahara_userLang", urlLang);
+            }
+
             App.uiStrings = raw[App.currentLang] || raw['en'];
             App.defaultStrings = raw['en'];
         } catch (e) {
+            console.error("Failed to load strings", e);
         }
 
-        // 2. NEW: Check URL for language param (e.g. tahara.app/?lang=fr)
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlLang = urlParams.get('lang');
-        if (urlLang && ['en', 'ar', 'fr', 'es', 'it'].includes(urlLang)) {
-            App.currentLang = urlLang;
-            localStorage.setItem("tahara_userLang", urlLang);
-            // Reload strings for the new language immediately
-            try {
-                const res = await fetch("strings.json");
-                const raw = await res.json();
-                App.uiStrings = raw[App.currentLang] || raw['en'];
-            } catch (e) {
-            }
-        }
-
-        // Apply Direction & Theme
+        // Apply Direction & Theme immediately
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
         document.documentElement.lang = App.currentLang;
         document.body.classList.toggle("dark", App.isDark);
-
-        // Add this inside init():
-        await NotificationManager.init();
-
-        switchTab('home');
-
-        if (localStorage.getItem("tahara_onboarded") !== "true") {
-            startOnboarding();
-        }
-        if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
-        if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
-        if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', App.isDark ? '#1a1617' : '#fff1f2');
 
         const langSel = el("langSelect");
         if (langSel) langSel.value = App.currentLang;
 
-        // Translate UI and ARIA Labels
+        // Translate UI
         const translateUI = () => {
             document.querySelectorAll("[data-i18n]").forEach(node => {
                 const key = node.getAttribute("data-i18n");
@@ -1194,75 +1179,85 @@
                 if (S(key)) node.setAttribute("aria-label", S(key));
             });
         };
-        translateUI(); // Run once on load
+        translateUI();
 
-        // 3. NEW: Trigger SEO Update
-        updateSEO();
-
-        const contactBtn = el("contactBtn");
-        if (contactBtn) {
-            const email = S("contact_email");
-            const mailtoUrl = `mailto:${email}`;
-            contactBtn.href = mailtoUrl;
-            contactBtn.onclick = (e) => {
-                if (typeof Capacitor !== 'undefined') {
-                    e.preventDefault();
-                    window.open(mailtoUrl, '_system');
-                }
-            };
-        }
-
+        // Render just the Home Tab
+        switchTab('home');
         updateStatusUI();
         updateLiveCounter();
-        setInterval(() => {
-            updateLiveCounter();
-            NotificationManager.checkWebFallback();
-        }, 1000);
-        await checkVersion();
-        el("mainActionBtn").onclick = toggleStatus;
-        if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
 
-        // Make sure to populate the history list on launch
-        renderFullInsights();
-        // 1. Update during initial load
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', App.isDark ? '#1a1617' : '#fff1f2');
-        // 2. Update inside the toggle listener
-        el("themeToggle").onclick = () => {
+        // Critical Listeners
+        if (el("mainActionBtn")) el("mainActionBtn").onclick = toggleStatus;
+        if (el("undoBtn")) el("undoBtn").onclick = deleteLastEntry;
+        if (el("themeToggle")) el("themeToggle").onclick = () => {
             App.isDark = !App.isDark;
             localStorage.setItem("tahara_darkMode", App.isDark);
             document.body.classList.toggle("dark", App.isDark);
-            // ADD THIS: Update the browser/OS UI color
-            document.querySelector('meta[name="theme-color"]')
-                .setAttribute('content', App.isDark ? '#1a1617' : '#fff1f2');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', App.isDark ? '#1a1617' : '#fff1f2');
             initNativeFeatures();
         };
-        const playBtn = el("playStoreBtn");
-        if (playBtn) {
-            const platform = (typeof Capacitor !== 'undefined') ? Capacitor.getPlatform() : 'web';
-            const isNative = (typeof Capacitor !== 'undefined') && Capacitor.isNativePlatform();
 
-            if (platform !== 'ios') {
-                playBtn.classList.remove("hidden");
-                playBtn.href = S("play_store_url");
-
-                // Dynamically change the text
-                playBtn.innerText = isNative
-                    ? S("play_store_rate_label")
-                    : S("play_store_get_label");
-            }
-        }
         if (langSel) langSel.onchange = (e) => {
             const newLang = e.target.value;
             localStorage.setItem("tahara_userLang", newLang);
-            // Update URL without reloading page (optional, but good for sharing)
             const newUrl = new URL(window.location);
             newUrl.searchParams.set('lang', newLang);
             window.history.pushState({}, '', newUrl);
             location.reload();
         };
 
-        initNativeFeatures();
-        setTimeout(checkInstall, 3000);
+        // --- 2. DEFERRED PATH (Run in background to free up main thread) ---
+        setTimeout(async () => {
+            // Check onboarding
+            if (localStorage.getItem("tahara_onboarded") !== "true") {
+                startOnboarding();
+            }
+
+            // Bind Settings buttons
+            if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
+            if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
+            if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
+
+            // Bind Contact button
+            const contactBtn = el("contactBtn");
+            if (contactBtn) {
+                const mailtoUrl = `mailto:${S("contact_email")}`;
+                contactBtn.href = mailtoUrl;
+                contactBtn.onclick = (e) => {
+                    if (typeof Capacitor !== 'undefined') {
+                        e.preventDefault();
+                        window.open(mailtoUrl, '_system');
+                    }
+                };
+            }
+
+            // Set up Play Store link
+            const playBtn = el("playStoreBtn");
+            if (playBtn) {
+                const platform = (typeof Capacitor !== 'undefined') ? Capacitor.getPlatform() : 'web';
+                if (platform !== 'ios') {
+                    playBtn.classList.remove("hidden");
+                    playBtn.href = S("play_store_url");
+                    playBtn.innerText = ((typeof Capacitor !== 'undefined') && Capacitor.isNativePlatform())
+                        ? S("play_store_rate_label") : S("play_store_get_label");
+                }
+            }
+
+            // Start background intervals and init APIs
+            setInterval(() => {
+                updateLiveCounter();
+                NotificationManager.checkWebFallback();
+            }, 1000);
+
+            await NotificationManager.init();
+            initNativeFeatures();
+            updateSEO();
+            checkVersion();
+
+            // Wait a few seconds before prompting for install
+            setTimeout(checkInstall, 3000);
+
+        }, 50); // Small 50ms delay lets the browser paint the UI first!
     }
 
     /* =========================================
