@@ -29,6 +29,15 @@
         symptoms: ['sym_cramps', 'sym_headache', 'sym_bloating', 'sym_acne', 'sym_nausea']
     };
 
+    // Accessibility: Announce to screen readers
+    window.announce = (msg) => {
+        const el = el("sr-announcer");
+        if (el) {
+            el.innerText = ""; // Clear
+            setTimeout(() => el.innerText = msg, 50); // Force re-read
+        }
+    };
+
     // ==========================================
     // DATA SCHEMA & MIGRATIONS (A2)
     // ==========================================
@@ -610,7 +619,9 @@
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         saveState();
         updateStatusUI();
-        renderFullInsights(); // CHANGED
+        const statusLabel = App.status === "purity" ? S("status_purity") : S("status_hayd");
+        window.announce(`${S("announce_status")} ${statusLabel}`);
+        renderFullInsights();
         updateLiveCounter();
     }
 
@@ -761,7 +772,7 @@
                     </div>
                     <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
-                    <button onclick="closeInfoModal()" class="w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>
+                    <button onclick="closeInfoModal()" data-i18n-aria="aria_close" class="w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>
                 </div>
             </div>
         `;
@@ -786,7 +797,7 @@
                     <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
                     <div class="flex gap-2">
-                        <button onclick="closeConfirmModal()" class="flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>
+                        <button onclick="closeConfirmModal()" data-i18n-aria="aria_close" class="flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>
                         <button id="confirmActionBtn" class="flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95">${S(confirmBtnKey)}</button>
                     </div>
                 </div>
@@ -1125,11 +1136,18 @@
         const langSel = el("langSelect");
         if (langSel) langSel.value = App.currentLang;
 
-        // Translate UI
-        document.querySelectorAll("[data-i18n]").forEach(node => {
-            const key = node.getAttribute("data-i18n");
-            if (S(key)) node.innerText = S(key);
-        });
+        // Translate UI and ARIA Labels
+        const translateUI = () => {
+            document.querySelectorAll("[data-i18n]").forEach(node => {
+                const key = node.getAttribute("data-i18n");
+                if (S(key)) node.innerText = S(key);
+            });
+            document.querySelectorAll("[data-i18n-aria]").forEach(node => {
+                const key = node.getAttribute("data-i18n-aria");
+                if (S(key)) node.setAttribute("aria-label", S(key));
+            });
+        };
+        translateUI(); // Run once on load
 
         // 3. NEW: Trigger SEO Update
         updateSEO();
@@ -1193,7 +1211,7 @@
             const newUrl = new URL(window.location);
             newUrl.searchParams.set('lang', newLang);
             window.history.pushState({}, '', newUrl);
-            location.reload();
+            translateUI();
         };
 
         initNativeFeatures();

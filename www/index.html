@@ -37,7 +37,7 @@
 <nav class="px-6 pb-2 pt-[calc(1.5rem+env(safe-area-inset-top))] flex justify-between items-center bg-transparent z-40 relative">
     <h1 class="text-2xl font-serif italic text-rose-400">طهارة</h1>
     <div class="flex items-center gap-4">
-        <select id="langSelect"
+        <select id="langSelect" data-i18n-aria="aria_select_lang"
                 class="text-[10px] bg-transparent font-bold uppercase tracking-tighter outline-none cursor-pointer text-rose-400 dark:text-rose-200">
             <option value="ar" class="bg-white dark:bg-slate-900">AR</option>
             <option value="en" class="bg-white dark:bg-slate-900">EN</option>
@@ -45,16 +45,16 @@
             <option value="es" class="bg-white dark:bg-slate-900">ES</option>
             <option value="it" class="bg-white dark:bg-slate-900">IT</option>
         </select>
-        <button id="themeToggle"
-                class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center text-xs">
-            🌙
+        <button id="themeToggle" data-i18n-aria="aria_toggle_theme"
+                class="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-500 flex items-center justify-center text-xs">
+            <span aria-hidden="true">🌙</span>
         </button>
     </div>
 </nav>
 
 <main id="mainContainer"
       class="grow overflow-y-auto px-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:pb-[calc(8rem+env(safe-area-inset-bottom))] pt-4 relative z-10 w-full sm:max-w-md sm:mx-auto">
-
+    <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
     <div id="view-home" class="view-section flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
         <div class="status-orb animate-fade-in mt-8">
             <span class="text-[10px] uppercase tracking-[0.2em] text-rose-300 mb-2 font-bold"
@@ -77,8 +77,8 @@
             <div class="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-3xl text-center border border-rose-100 dark:border-rose-900/20">
                 <div class="flex items-center justify-center gap-1.5 mb-1">
                     <span class="text-[10px] uppercase tracking-widest text-rose-400 font-bold" data-i18n="avg_cycle">Avg. Cycle</span>
-                    <button onclick="showInfoModal('avg_cycle', 'explainer_cycle')"
-                            class="w-3.5 h-3.5 rounded-full border border-rose-200 dark:border-rose-800 text-rose-400 flex items-center justify-center text-[8px] font-bold hover:bg-rose-200">
+                    <button onclick="showInfoModal('avg_cycle', 'explainer_cycle')" data-i18n-aria="aria_info_cycle"
+                            class="w-6 h-6 rounded-full border border-rose-200 dark:border-rose-800 text-rose-400 flex items-center justify-center text-[8px] font-bold hover:bg-rose-200">
                         ?
                     </button>
                 </div>
@@ -87,8 +87,8 @@
             <div class="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-3xl text-center border border-amber-100 dark:border-amber-900/20">
                 <div class="flex items-center justify-center gap-1.5 mb-1">
                     <span class="text-[10px] uppercase tracking-widest text-amber-400 font-bold" data-i18n="avg_purity">Avg. Purity</span>
-                    <button onclick="showInfoModal('avg_purity', 'explainer_purity')"
-                            class="w-3.5 h-3.5 rounded-full border border-amber-200 dark:border-amber-800 text-amber-400 flex items-center justify-center text-[8px] font-bold hover:bg-amber-200">
+                    <button onclick="showInfoModal('avg_purity', 'explainer_purity')" data-i18n-aria="aria_info_purity"
+                            class="w-6 h-6 rounded-full border border-amber-200 dark:border-amber-800 text-amber-400 flex items-center justify-center text-[8px] font-bold hover:bg-amber-200">
                         ?
                     </button>
                 </div>
@@ -105,10 +105,14 @@
         <div id="calendar-container"
              class="mb-6 bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/5">
             <div class="flex justify-between items-center mb-4 px-2">
-                <button onclick="changeMonth(-1)" class="text-rose-400 font-bold p-2">❮</button>
+                <button onclick="changeMonth(-1)" data-i18n-aria="aria_prev_month"
+                        class="w-10 h-10 text-rose-400 font-bold p-2 flex items-center justify-center">❮
+                </button>
                 <span id="calMonthYear"
                       class="text-sm font-bold text-slate-600 dark:text-rose-100 uppercase tracking-widest">--</span>
-                <button onclick="changeMonth(1)" class="text-rose-400 font-bold p-2">❯</button>
+                <button onclick="changeMonth(1)" data-i18n-aria="aria_next_month"
+                        class="w-10 h-10 text-rose-400 font-bold p-2 flex items-center justify-center">❯
+                </button>
             </div>
             <div id="calendarLegend" class="flex justify-center gap-4 mb-4 text-[9px] uppercase tracking-wider"></div>
             <div id="calendarWeekdays" class="grid grid-cols-7 mb-2 text-center"></div>
@@ -157,13 +161,13 @@
                 <div class="text-center bg-white dark:bg-[#1a1617] p-4 rounded-3xl border border-rose-50 dark:border-rose-900/10 shadow-sm">
                     <span class="block text-[10px] uppercase font-bold text-rose-400 mb-3" data-i18n="missed_fast">Missed</span>
                     <div class="flex items-center justify-center gap-3">
-                        <button onclick="updateDebt(1)"
-                                class="w-8 h-8 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full font-bold text-lg hover:bg-rose-100 transition-colors">
+                        <button onclick="updateDebt(1)" data-i18n-aria="aria_add_missed"
+                                class="w-10 h-10 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full font-bold text-lg hover:bg-rose-100 transition-colors">
                             +
                         </button>
                         <span id="totalMissed" class="text-xl font-black text-rose-500 w-6">0</span>
-                        <button onclick="updateDebt(-1)"
-                                class="w-8 h-8 bg-rose-50 dark:bg-rose-900/20 text-rose-400 rounded-full font-bold text-lg hover:bg-rose-100 transition-colors">
+                        <button onclick="updateDebt(-1)" data-i18n-aria="aria_remove_missed"
+                                class="w-10 h-10 bg-rose-50 dark:bg-rose-900/20 text-rose-400 rounded-full font-bold text-lg hover:bg-rose-100 transition-colors">
                             -
                         </button>
                     </div>
@@ -171,13 +175,13 @@
                 <div class="text-center bg-white dark:bg-[#1a1617] p-4 rounded-3xl border border-emerald-50 dark:border-emerald-900/10 shadow-sm">
                     <span class="block text-[10px] uppercase font-bold text-emerald-500 mb-3" data-i18n="made_up_fast">Made Up</span>
                     <div class="flex items-center justify-center gap-3">
-                        <button onclick="updatePaid(1)"
-                                class="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full font-bold text-lg hover:bg-emerald-100 transition-colors">
+                        <button onclick="updatePaid(1)" data-i18n-aria="aria_add_paid"
+                                class="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-full font-bold text-lg hover:bg-emerald-100 transition-colors">
                             +
                         </button>
                         <span id="totalPaid" class="text-xl font-black text-emerald-600 w-6">0</span>
-                        <button onclick="updatePaid(-1)"
-                                class="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-400 rounded-full font-bold text-lg hover:bg-emerald-100 transition-colors">
+                        <button onclick="updatePaid(-1)" data-i18n-aria="aria_remove_paid"
+                                class="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-400 rounded-full font-bold text-lg hover:bg-emerald-100 transition-colors">
                             -
                         </button>
                     </div>
@@ -268,7 +272,7 @@
         <button onclick="switchTab('home')"
                 class="nav-btn flex flex-col items-center justify-center w-full h-full text-rose-500 font-bold transition-colors"
                 data-tab="home">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                  stroke="currentColor" class="w-6 h-6 mb-0.5">
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
@@ -278,7 +282,7 @@
         <button onclick="switchTab('calendar')"
                 class="nav-btn flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-rose-400 transition-colors"
                 data-tab="calendar">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                  stroke="currentColor" class="w-6 h-6 mb-0.5">
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/>
@@ -288,7 +292,7 @@
         <button onclick="switchTab('fasting')"
                 class="nav-btn flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-rose-400 transition-colors"
                 data-tab="fasting">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                  stroke="currentColor" class="w-6 h-6 mb-0.5">
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"/>
@@ -298,7 +302,7 @@
         <button onclick="switchTab('history')"
                 class="nav-btn flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-rose-400 transition-colors"
                 data-tab="history">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                  stroke="currentColor" class="w-6 h-6 mb-0.5">
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>
@@ -310,7 +314,7 @@
                 data-tab="settings">
             <span id="settingsNavDot"
                   class="hidden absolute top-2 end-4 w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+            <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                  stroke="currentColor" class="w-6 h-6 mb-0.5">
                 <path stroke-linecap="round" stroke-linejoin="round"
                       d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.99l1.005.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/>

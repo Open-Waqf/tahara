@@ -109,7 +109,19 @@
     "onb_2_desc": "Your data stays on your device. No servers, no tracking, complete peace of mind.",
     "onb_3_title": "Smart Insights",
     "onb_3_desc": "Tahara calculates your averages, expected dates, and helps track your Ramadan fasting debt.",
-    "btn_replay_onboarding": "Replay Tutorial"
+    "btn_replay_onboarding": "Replay Tutorial",
+    "aria_toggle_theme": "Toggle dark mode",
+    "aria_select_lang": "Select language",
+    "aria_prev_month": "Previous month",
+    "aria_next_month": "Next month",
+    "aria_info_cycle": "Information about average cycle",
+    "aria_info_purity": "Information about average purity",
+    "aria_add_missed": "Add missed fast",
+    "aria_remove_missed": "Remove missed fast",
+    "aria_add_paid": "Add made up fast",
+    "aria_remove_paid": "Remove made up fast",
+    "aria_close": "Close",
+    "announce_status": "Status changed to"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -216,7 +228,19 @@
     "onb_2_desc": "بياناتك تبقى على جهازك. لا خوادم، لا تتبع، راحة بال تامة.",
     "onb_3_title": "رؤى ذكية",
     "onb_3_desc": "تحسب طهارة متوسطاتك، وتواريخك المتوقعة، وتساعدك على تتبع قضاء الصيام.",
-    "btn_replay_onboarding": "إعادة الشرح"
+    "btn_replay_onboarding": "إعادة الشرح",
+    "aria_toggle_theme": "تبديل الوضع الداكن",
+    "aria_select_lang": "اختر اللغة",
+    "aria_prev_month": "الشهر السابق",
+    "aria_next_month": "الشهر التالي",
+    "aria_info_cycle": "معلومات عن متوسط الدورة",
+    "aria_info_purity": "معلومات عن متوسط الطهر",
+    "aria_add_missed": "إضافة صيام فائت",
+    "aria_remove_missed": "إزالة صيام فائت",
+    "aria_add_paid": "إضافة صيام مقضي",
+    "aria_remove_paid": "إزالة صيام مقضي",
+    "aria_close": "إغلاق",
+    "announce_status": "تم تغيير الحالة إلى"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -323,7 +347,19 @@
     "onb_2_desc": "Vos données restent sur votre appareil. Pas de serveurs, pas de suivi, une tranquillité d'esprit totale.",
     "onb_3_title": "Aperçus Intelligents",
     "onb_3_desc": "Tahara calcule vos moyennes, vos dates prévues, et vous aide à suivre vos jours de jeûne à rattraper.",
-    "btn_replay_onboarding": "Rejouer le tutoriel"
+    "btn_replay_onboarding": "Rejouer le tutoriel",
+    "aria_toggle_theme": "Basculer le mode sombre",
+    "aria_select_lang": "Choisir la langue",
+    "aria_prev_month": "Mois précédent",
+    "aria_next_month": "Mois suivant",
+    "aria_info_cycle": "Infos sur le cycle moyen",
+    "aria_info_purity": "Infos sur la pureté moyenne",
+    "aria_add_missed": "Ajouter un jeûne manqué",
+    "aria_remove_missed": "Retirer un jeûne manqué",
+    "aria_add_paid": "Ajouter un jeûne rattrapé",
+    "aria_remove_paid": "Retirer un jeûne rattrapé",
+    "aria_close": "Fermer",
+    "announce_status": "Statut changé en"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -430,7 +466,19 @@
     "onb_2_desc": "Tus datos se quedan en tu dispositivo. Sin servidores, sin rastreo, total tranquilidad.",
     "onb_3_title": "Información Inteligente",
     "onb_3_desc": "Tahara calcula tus promedios, fechas esperadas y te ayuda a rastrear los días de ayuno pendientes.",
-    "btn_replay_onboarding": "Repetir tutorial"
+    "btn_replay_onboarding": "Repetir tutorial",
+    "aria_toggle_theme": "Alternar modo oscuro",
+    "aria_select_lang": "Seleccionar idioma",
+    "aria_prev_month": "Mes anterior",
+    "aria_next_month": "Mes siguiente",
+    "aria_info_cycle": "Información sobre ciclo promedio",
+    "aria_info_purity": "Información sobre pureza promedio",
+    "aria_add_missed": "Añadir ayuno perdido",
+    "aria_remove_missed": "Quitar ayuno perdido",
+    "aria_add_paid": "Añadir ayuno recuperado",
+    "aria_remove_paid": "Quitar ayuno recuperado",
+    "aria_close": "Cerrar",
+    "announce_status": "Estado cambiado a"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -537,6 +585,18 @@
     "onb_2_desc": "I tuoi dati rimangono sul tuo dispositivo. Nessun server, nessun tracciamento, totale tranquillità.",
     "onb_3_title": "Informazioni Intelligenti",
     "onb_3_desc": "Tahara calcola le tue medie, le date previste e ti aiuta a monitorare i giorni di digiuno da recuperare.",
-    "btn_replay_onboarding": "Riproduci tutorial"
+    "btn_replay_onboarding": "Riproduci tutorial",
+    "aria_toggle_theme": "Attiva/disattiva modalità scura",
+    "aria_select_lang": "Seleziona lingua",
+    "aria_prev_month": "Mese precedente",
+    "aria_next_month": "Mese successivo",
+    "aria_info_cycle": "Informazioni sul ciclo medio",
+    "aria_info_purity": "Informazioni sulla purezza media",
+    "aria_add_missed": "Aggiungi digiuno perso",
+    "aria_remove_missed": "Rimuovi digiuno perso",
+    "aria_add_paid": "Aggiungi digiuno recuperato",
+    "aria_remove_paid": "Rimuovi digiuno recuperato",
+    "aria_close": "Chiudi",
+    "announce_status": "Stato cambiato in"
   }
 }
