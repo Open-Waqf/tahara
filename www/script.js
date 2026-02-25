@@ -151,6 +151,8 @@ import {TaharaEngine} from './engine.js';
     }
 
     window.switchTab = (tabId) => {
+        window.closeConfirmModal();
+        window.closeInfoModal();
         // Hide all views
         document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
         // Show target view
@@ -564,16 +566,45 @@ import {TaharaEngine} from './engine.js';
             return;
         }
 
-        fullList.innerHTML = App.history.map(entry => {
+        fullList.innerHTML = App.history.map((entry, index) => {
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
             const bgClass = entry.status === 'hayd' ? 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20';
 
-            return `<div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2">
-                <span class="text-sm font-bold ${color}">${label}</span>
-                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
+            return `
+            <div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group">
+                <div class="flex flex-col">
+                    <span class="text-sm font-bold ${color}">${label}</span>
+                    <span class="text-[10px] text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
+                </div>
+                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">
+                    <span class="text-lg">🗑️</span>
+                </button>
             </div>`;
         }).join('');
+    }
+
+    function deleteSpecificEntry(index) {
+        showConfirmModal("delete_title", "delete_confirm", "btn_delete", () => {
+            App.history.splice(index, 1);
+
+            // If we deleted the "active" status (index 0), update current app state
+            if (index === 0) {
+                if (App.history.length > 0) {
+                    App.status = App.history[0].status;
+                    App.lastChanged = App.history[0].time;
+                } else {
+                    App.status = "purity";
+                    App.lastChanged = new Date().toISOString();
+                }
+            }
+
+            saveState();
+            updateStatusUI();
+            renderFullInsights();
+            updateLiveCounter();
+            showToast("toast_entry_deleted", "neutral", "Entry removed");
+        });
     }
 
     // ==========================================
@@ -603,7 +634,8 @@ import {TaharaEngine} from './engine.js';
             setTimeout(() => {
                 // Only remove the rose color if we aren't currently ON the history tab
                 historyTabBtn.classList.remove('animate-bounce');
-                if (!document.getElementById('view-history').classList.contains('hidden') === false) {
+                const isHistoryVisible = !el('view-history').classList.contains('hidden');
+                if (!isHistoryVisible) {
                     historyTabBtn.classList.remove('text-rose-500');
                 }
             }, 1000);
@@ -777,8 +809,8 @@ import {TaharaEngine} from './engine.js';
         document.body.appendChild(container);
 
         // Bind events after adding to DOM
-        container.querySelector('.modal-backdrop').addEventListener('click', closeInfoModal);
-        container.querySelector('.modal-close-btn').addEventListener('click', closeInfoModal);
+        container.querySelector('.modal-backdrop').addEventListener('click', window.closeInfoModal);
+        container.querySelector('.modal-close-btn').addEventListener('click', window.closeInfoModal);
     };
 
     window.closeInfoModal = () => {
@@ -787,6 +819,8 @@ import {TaharaEngine} from './engine.js';
     };
 
     function showConfirmModal(titleKey, messageKey, confirmBtnKey, onConfirmCallback) {
+        if (el("customConfirmModal")) return;
+
         const modalHtml = `
             <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customConfirmModal" style="z-index: 99999;">
                 <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
@@ -806,10 +840,10 @@ import {TaharaEngine} from './engine.js';
         document.body.appendChild(container);
 
         // Bind events
-        container.querySelector('.modal-backdrop').addEventListener('click', closeConfirmModal);
-        container.querySelector('.modal-cancel-btn').addEventListener('click', closeConfirmModal);
+        container.querySelector('.modal-backdrop').addEventListener('click', window.closeConfirmModal);
+        container.querySelector('.modal-cancel-btn').addEventListener('click', window.closeConfirmModal);
         container.querySelector('.modal-confirm-btn').addEventListener('click', () => {
-            closeConfirmModal();
+            window.closeConfirmModal();
             onConfirmCallback();
         });
     }
@@ -1190,6 +1224,8 @@ import {TaharaEngine} from './engine.js';
         };
         translateUI();
 
+        initServiceWorker();
+
         // Render just the Home Tab
         switchTab('home');
         updateStatusUI();
@@ -1243,6 +1279,17 @@ import {TaharaEngine} from './engine.js';
             el("calendarDays").addEventListener('click', (e) => {
                 const dayEl = e.target.closest('[data-date]');
                 if (dayEl) selectDate(dayEl.getAttribute('data-date'));
+            });
+        }
+
+        // Bind the delete buttons (Event Delegation)
+        if (el("fullHistoryList")) {
+            el("fullHistoryList").addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-delete-index]');
+                if (btn) {
+                    const index = parseInt(btn.getAttribute('data-delete-index'));
+                    deleteSpecificEntry(index);
+                }
             });
         }
 
@@ -1317,53 +1364,92 @@ import {TaharaEngine} from './engine.js';
         }, 50); // Small 50ms delay lets the browser paint the UI first!
     }
 
+    window.addEventListener('load', init);
     /* =========================================
    SERVICE WORKER SETUP (Updates & Offline)
    ========================================= */
 
     // 1. Define the function
+    let userApprovedRefresh = false;
+
     function initServiceWorker() {
         if (!("serviceWorker" in navigator)) return;
-
+        // Don't run SW on native Capacitor (it handles its own caching)
         if (window.Capacitor && window.Capacitor.isNativePlatform()) return;
 
         navigator.serviceWorker.register("sw.js").then((reg) => {
-            console.log("✅ Service Worker Registered!");
+            console.log("✅ SW Registered");
 
-            if (reg.waiting) reg.waiting.postMessage({type: 'SKIP_WAITING'});
+            // 1. If a worker is already waiting (user refreshed but didn't click update before)
+            if (reg.waiting) {
+                showUpdateToast(reg);
+            }
 
+            // 2. If a new worker is discovered
             reg.addEventListener("updatefound", () => {
                 const newWorker = reg.installing;
                 newWorker.addEventListener("statechange", () => {
                     if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                        // FIXED (C1): Don't force reload. Show a friendly prompt instead.
-                        const container = el("toast-container");
-                        if (container) {
-                            const toast = document.createElement("div");
-                            toast.className = "px-4 py-3 rounded-2xl shadow-2xl text-xs font-bold animate-fade-in bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 w-full flex justify-between items-center border border-slate-700 dark:border-white/20";
-                            toast.innerHTML = `
-                                <span>${S("update_available", "Update available!")}</span>
-                                <button class="bg-rose-500 text-white px-3 py-1 rounded-full shadow-md active:scale-95 transition-transform">${S("btn_refresh", "Refresh")}</button>
-                            `;
-                            container.appendChild(toast);
-                            toast.querySelector('button').addEventListener('click', () => window.location.reload());
-                        }
+                        showUpdateToast(reg);
                     }
                 });
             });
-        }).catch((err) => console.error("❌ SW Registration Failed:", err));
+        });
 
-        let refreshing = false;
+        // 3. The actual reload trigger
         navigator.serviceWorker.addEventListener("controllerchange", () => {
-            if (!refreshing) {
-                refreshing = true;
+            if (userApprovedRefresh) {
                 window.location.reload();
             }
         });
     }
 
-    // 2. Call it immediately
-    initServiceWorker();
+    function showUpdateToast(reg) {
+        const container = el("toast-container");
+        if (!container || el("update-toast")) return;
 
-    window.onload = init;
+        const toast = document.createElement("div");
+        toast.id = "update-toast";
+
+        // pointer-events-auto: This makes the toast clickable!
+        // bg-slate-900: Solid background
+        toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-slate-900 border border-slate-700 dark:border-slate-300 animate-fade-in";
+
+        toast.innerHTML = `
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase tracking-widest opacity-70">${S("app_title", "Tahara")}</span>
+                <span class="text-xs font-bold">${S("update_available", "Update ready!")}</span>
+            </div>
+            <button id="execRefresh" class="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all">
+                ${S("btn_refresh", "REFRESH")}
+            </button>
+        `;
+        container.appendChild(toast);
+
+        const btn = el("execRefresh");
+        btn.onclick = (e) => {
+            e.stopPropagation(); // Prevent the click from bubbling up
+            console.log("REFRESH CLICKED - Executing Update...");
+            userApprovedRefresh = true;
+
+            const worker = reg.waiting || reg.installing || reg.active;
+            if (worker) {
+                worker.postMessage({type: 'SKIP_WAITING'});
+                // Force reload if SW is stubborn
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                window.location.reload();
+            }
+        };
+    }
+
+    window.activateUpdate = () => {
+        navigator.serviceWorker.getRegistration().then(reg => {
+            if (reg && reg.waiting) {
+                reg.waiting.postMessage({type: 'SKIP_WAITING'});
+            } else {
+                window.location.reload();
+            }
+        });
+    };
 })();

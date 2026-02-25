@@ -90,14 +90,15 @@ test.describe('Tahara E2E UX Paths', () => {
         const themeToggle = page.locator('#themeToggle');
         const body = page.locator('body');
 
-        // Default is usually light (no dark class)
-        await expect(body).not.toHaveClass(/dark/);
+        const classList = await body.getAttribute('class');
+        expect(classList.split(' ')).not.toContain('dark');
 
         // Toggle Dark Mode
         await themeToggle.click();
 
-        // Verify class added and localStorage updated
-        await expect(body).toHaveClass(/dark/);
+        // Now we check if the class list DOES contain "dark"
+        const updatedClassList = await body.getAttribute('class');
+        expect(updatedClassList.split(' ')).toContain('dark');
         const isDark = await page.evaluate(() => localStorage.getItem('tahara_darkMode'));
         expect(isDark).toBe('true');
     });
