@@ -1200,6 +1200,10 @@ import {TaharaEngine} from './engine.js';
             App.defaultStrings = raw['en'];
         } catch (e) {
             console.error("Failed to load strings", e);
+        } finally {
+            requestAnimationFrame(() => {
+                document.documentElement.style.opacity = '1';
+            });
         }
 
         // Apply Direction & Theme immediately
@@ -1411,10 +1415,7 @@ import {TaharaEngine} from './engine.js';
         const toast = document.createElement("div");
         toast.id = "update-toast";
 
-        // pointer-events-auto: This makes the toast clickable!
-        // bg-slate-900: Solid background
-        toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-slate-900 border border-slate-700 dark:border-slate-300 animate-fade-in";
-
+        toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-white dark:bg-[#2d2426] text-slate-700 dark:text-rose-100 border border-slate-200 dark:border-white/10 animate-fade-in";
         toast.innerHTML = `
             <div class="flex flex-col">
                 <span class="text-[10px] uppercase tracking-widest opacity-70">${S("app_title", "Tahara")}</span>
@@ -1429,7 +1430,6 @@ import {TaharaEngine} from './engine.js';
         const btn = el("execRefresh");
         btn.onclick = (e) => {
             e.stopPropagation(); // Prevent the click from bubbling up
-            console.log("REFRESH CLICKED - Executing Update...");
             userApprovedRefresh = true;
 
             const worker = reg.waiting || reg.installing || reg.active;

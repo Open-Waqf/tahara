@@ -218,3 +218,24 @@ input:focus-visible {
 html[dir="rtl"] * {
     letter-spacing: normal !important;
 }
+
+html[style*="opacity: 0"] body {
+    background-color: #fff1f2; /* Your light theme color */
+    animation: pulse 2s infinite ease-in-out;
+}
+
+html.dark[style*="opacity: 0"] body {
+    background-color: #1a1617; /* Your dark theme color */
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.8;
+    }
+}
