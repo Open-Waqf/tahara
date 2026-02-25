@@ -17,10 +17,8 @@ nav {
 body {
   font-family: 'Segoe UI',system-ui,sans-serif;
   color: var(--text-main);
-  min-height: 100vh;
   transition: background .3s ease;
   overflow-x: hidden;
-  padding-bottom: env(safe-area-inset-bottom);
   overscroll-behavior-y: none
 }
 main {

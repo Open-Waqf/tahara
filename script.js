@@ -16,6 +16,48 @@ import { TaharaEngine } from "./engine.js";
         avgCycleLength: 0,
         avgHaydLength: 0
     };
+    async function safeDownloadJSON(dataObj, fileName) {
+        const jsonStr = JSON.stringify(dataObj, null, 2);
+        if (navigator.share) {
+            try {
+                const file = new File([ jsonStr ], fileName, {
+                    type: "text/plain"
+                });
+                if (navigator.canShare && navigator.canShare({
+                    files: [ file ]
+                })) {
+                    await navigator.share({
+                        title: S("app_title", "Tahara Export"),
+                        files: [ file ]
+                    });
+                    return true;
+                }
+            } catch (err) {
+                console.log("Share API cancelled or failed", err);
+                if (err.name === "AbortError") return false;
+            }
+        }
+        try {
+            const blob = new Blob([ jsonStr ], {
+                type: "application/json"
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 150);
+            return true;
+        } catch (e) {
+            console.error("Download failed", e);
+            return false;
+        }
+    }
     const ErrorLog = {
         logs: [],
         add(err) {
@@ -35,22 +77,76 @@ import { TaharaEngine } from "./engine.js";
         });
         return false;
     };
-    window.exportDiagnostics = () => {
+    window.safeDownloadJSON = async (dataObj, fileName) => {
+        const jsonStr = JSON.stringify(dataObj, null, 2);
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            try {
+                const {Filesystem: Filesystem, Share: Share} = Capacitor.Plugins;
+                const writeResult = await Filesystem.writeFile({
+                    path: fileName,
+                    data: jsonStr,
+                    directory: "CACHE",
+                    encoding: "utf8"
+                });
+                await Share.share({
+                    title: "Tahara Export",
+                    url: writeResult.uri,
+                    dialogTitle: "Save Tahara Data"
+                });
+                return true;
+            } catch (err) {
+                console.error("Native Capacitor export failed", err);
+                return false;
+            }
+        }
+        if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
+            try {
+                const file = new File([ jsonStr ], fileName, {
+                    type: "text/plain"
+                });
+                if (navigator.canShare && navigator.canShare({
+                    files: [ file ]
+                })) {
+                    await navigator.share({
+                        files: [ file ]
+                    });
+                    return true;
+                }
+            } catch (err) {
+                if (err.name === "AbortError") return false;
+            }
+        }
+        try {
+            const blob = new Blob([ jsonStr ], {
+                type: "application/json"
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 150);
+            return true;
+        } catch (e) {
+            console.error("Web export failed", e);
+            return false;
+        }
+    };
+    window.exportDiagnostics = async () => {
         const diagnosticData = {
             app_version: el("appVersion")?.innerText || "Unknown",
             platform: navigator.userAgent,
             language: App.currentLang,
             error_history: ErrorLog.logs
         };
-        const blob = new Blob([ JSON.stringify(diagnosticData, null, 2) ], {
-            type: "application/json"
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `tahara-diagnostics-${(new Date).toISOString().split("T")[0]}.json`;
-        a.click();
-        showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
+        const fileName = `tahara-diagnostics-${(new Date).toISOString().split("T")[0]}.txt`;
+        const success = await window.safeDownloadJSON(diagnosticData, fileName);
+        if (success) showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
     };
     window.showToast = (messageKey, type = "success", fallback = "Success") => {
         const container = el("toast-container");
@@ -453,7 +549,7 @@ import { TaharaEngine } from "./engine.js";
             const label = entry.status === "hayd" ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === "hayd" ? "text-rose-600 dark:text-rose-200" : "text-amber-700 dark:text-amber-100";
             const bgClass = entry.status === "hayd" ? "bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20" : "bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20";
-            return `\n            <div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group">\n                <div class="flex flex-col">\n                    <span class="text-sm font-bold ${color}">${label}</span>\n                    <span class="text-[10px] text-slate-400 font-medium">${formatDateTime(entry.time)}</span>\n                </div>\n                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">\n                    <span class="text-lg">🗑️</span>\n                </button>\n            </div>`;
+            return `\n            <div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group">\n                <div class="flex flex-col">\n                    <span class="text-sm font-bold ${color}">${label}</span>\n                    <span class="text-[10px] text-slate-400 font-medium">${formatDateTime(entry.time)}</span>\n                </div>\n                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all">\n                    <span class="text-lg">🗑️</span>\n                </button>\n            </div>`;
         }).join("");
     }
     function deleteSpecificEntry(index) {
@@ -581,41 +677,13 @@ import { TaharaEngine } from "./engine.js";
             tahara_logs: App.dailyLogs,
             export_date: (new Date).toISOString()
         };
-        const jsonStr = JSON.stringify(data, null, 2);
-        const fileName = `tahara-backup-${(new Date).toISOString().split("T")[0]}.json`;
-        if (navigator.share && navigator.canShare) {
-            try {
-                const file = new File([ jsonStr ], fileName, {
-                    type: "application/json"
-                });
-                if (navigator.canShare({
-                    files: [ file ]
-                })) {
-                    await navigator.share({
-                        title: S("app_title", "Tahara Backup"),
-                        text: "My Tahara App Data Backup",
-                        files: [ file ]
-                    });
-                    return;
-                }
-            } catch (err) {
-                console.log("Sharing failed or cancelled", err);
-            }
+        const fileName = `tahara-backup-${(new Date).toISOString().split("T")[0]}.txt`;
+        const success = await window.safeDownloadJSON(data, fileName);
+        if (success) {
+            localStorage.setItem("tahara_last_backup", (new Date).toISOString());
+            updateSettingsUI();
+            showToast("toast_backup_success", "success", "Backup saved");
         }
-        const blob = new Blob([ jsonStr ], {
-            type: "application/json"
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        localStorage.setItem("tahara_last_backup", (new Date).toISOString());
-        updateSettingsUI();
-        showToast("toast_backup_success", "success", "Backup saved");
     }
     function importData() {
         const input = document.createElement("input");
