@@ -22,53 +22,57 @@ import {TaharaEngine} from './engine.js';
     };
 
     // ==========================================
-    // SAFE EXPORT HELPER (Fixes Android Downloads)
+    // BULLETPROOF HYBRID EXPORT HELPER
     // ==========================================
-    async function safeDownloadJSON(dataObj, fileName) {
+    window.safeDownloadJSON = async (dataObj, fileName) => {
         const jsonStr = JSON.stringify(dataObj, null, 2);
 
-        // 1. Try Native/Mobile Share API First
-        if (navigator.share) {
+        // --- 1. CAPACITOR NATIVE ANDROID / IOS ---
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             try {
-                // Using text/plain ensures Android Share sheet doesn't reject it
-                const file = new File([jsonStr], fileName, {type: "text/plain"});
-                if (navigator.canShare && navigator.canShare({files: [file]})) {
-                    await navigator.share({
-                        title: S("app_title", "Tahara Export"),
-                        files: [file]
-                    });
-                    return true; // Success
-                }
+                const {Filesystem, Share} = Capacitor.Plugins;
+                const writeResult = await Filesystem.writeFile({
+                    path: fileName,
+                    data: jsonStr,
+                    directory: 'CACHE', // Best location for temporary file sharing
+                    encoding: 'utf8'
+                });
+
+                await Share.share({
+                    title: 'Tahara Data',
+                    url: writeResult.uri,
+                    dialogTitle: 'Save Tahara Data'
+                });
+                return true;
             } catch (err) {
-                console.log("Share API cancelled or failed", err);
-                if (err.name === 'AbortError') return false; // User cancelled, don't download
+                console.error("Native Capacitor export failed", err);
+                return false;
             }
         }
 
-        // 2. Standard Web Fallback (with Android-safe DOM appending)
+        // --- 2. STANDARD WEB PWA (Browser) ---
+        // Simple, clean DOM download. Works reliably on all modern mobile/desktop browsers.
         try {
             const blob = new Blob([jsonStr], {type: "application/json"});
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.style.display = 'none';
+            a.style.display = "none";
             a.href = url;
             a.download = fileName;
 
-            // CRITICAL FOR ANDROID: Must append to body before clicking
             document.body.appendChild(a);
             a.click();
 
-            // Small delay to ensure Android registers the click before removing
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             }, 150);
             return true;
         } catch (e) {
-            console.error("Download failed", e);
+            console.error("Web export failed", e);
             return false;
         }
-    }
+    };
 
     // E3: Local Error Logger
     const ErrorLog = {
@@ -161,8 +165,7 @@ import {TaharaEngine} from './engine.js';
             language: App.currentLang,
             error_history: ErrorLog.logs
         };
-        const fileName = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.txt`; // .txt is safer for Android
-
+        const fileName = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.json`;
         const success = await window.safeDownloadJSON(diagnosticData, fileName);
         if (success) showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
     };
@@ -835,14 +838,12 @@ import {TaharaEngine} from './engine.js';
             export_date: new Date().toISOString()
         };
 
-        // Using .txt extension for the actual file makes Android Web Share 10x more reliable
-        const fileName = `tahara-backup-${new Date().toISOString().split('T')[0]}.txt`;
-
+        const fileName = `tahara-backup-${new Date().toISOString().split('T')[0]}.json`;
         const success = await window.safeDownloadJSON(data, fileName);
 
         if (success) {
             localStorage.setItem("tahara_last_backup", new Date().toISOString());
-            updateSettingsUI(); // Ensure warning dot disappears
+            updateSettingsUI();
             showToast("toast_backup_success", "success", "Backup saved");
         }
     }
@@ -850,23 +851,25 @@ import {TaharaEngine} from './engine.js';
     function importData() {
         const input = document.createElement("input");
         input.type = "file";
-        input.accept = ".json";
+
+        // THE MAGIC BULLET FOR ANDROID WEBVIEW FILE PICKERS:
+        // Accepting '*/*' prevents Android from graying out .json files.
+        // Our JavaScript try/catch block will protect us from invalid file types.
+        input.accept = "*/*";
+
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
+                    // This parse will fail immediately if they select a photo or invalid file
                     const data = JSON.parse(event.target.result);
 
-                    // STRICT VALIDATION
                     if (!data.tahara_history || !Array.isArray(data.tahara_history)) throw new Error("Missing/Invalid history");
                     if (!data.tahara_status) throw new Error("Missing status");
 
-                    // Hold in memory
                     pendingImportData = data;
-
-                    // Render preview in UI
                     showRestorePreview(data);
                 } catch (err) {
                     alert(S("import_error", "Error: Invalid backup file. The data is corrupted or unsupported."));
