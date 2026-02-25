@@ -21,6 +21,55 @@ import {TaharaEngine} from './engine.js';
         avgHaydLength: 0
     };
 
+    // ==========================================
+    // SAFE EXPORT HELPER (Fixes Android Downloads)
+    // ==========================================
+    async function safeDownloadJSON(dataObj, fileName) {
+        const jsonStr = JSON.stringify(dataObj, null, 2);
+
+        // 1. Try Native/Mobile Share API First
+        if (navigator.share) {
+            try {
+                // Using text/plain ensures Android Share sheet doesn't reject it
+                const file = new File([jsonStr], fileName, {type: "text/plain"});
+                if (navigator.canShare && navigator.canShare({files: [file]})) {
+                    await navigator.share({
+                        title: S("app_title", "Tahara Export"),
+                        files: [file]
+                    });
+                    return true; // Success
+                }
+            } catch (err) {
+                console.log("Share API cancelled or failed", err);
+                if (err.name === 'AbortError') return false; // User cancelled, don't download
+            }
+        }
+
+        // 2. Standard Web Fallback (with Android-safe DOM appending)
+        try {
+            const blob = new Blob([jsonStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = 'none';
+            a.href = url;
+            a.download = fileName;
+
+            // CRITICAL FOR ANDROID: Must append to body before clicking
+            document.body.appendChild(a);
+            a.click();
+
+            // Small delay to ensure Android registers the click before removing
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 150);
+            return true;
+        } catch (e) {
+            console.error("Download failed", e);
+            return false;
+        }
+    }
+
     // E3: Local Error Logger
     const ErrorLog = {
         logs: [],
@@ -39,22 +88,83 @@ import {TaharaEngine} from './engine.js';
         return false;
     };
 
-    // Add this function to your Settings logic
-    window.exportDiagnostics = () => {
+    window.safeDownloadJSON = async (dataObj, fileName) => {
+        const jsonStr = JSON.stringify(dataObj, null, 2);
+
+        // --- 1. CAPACITOR NATIVE ANDROID / IOS ---
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+            try {
+                const {Filesystem, Share} = Capacitor.Plugins;
+
+                // Write the file to the native device cache
+                const writeResult = await Filesystem.writeFile({
+                    path: fileName,
+                    data: jsonStr,
+                    directory: 'CACHE', // Safest directory for temporary sharing
+                    encoding: 'utf8'
+                });
+
+                // Trigger the Native Share Sheet so the user can save to Google Drive or Local Files
+                await Share.share({
+                    title: 'Tahara Export',
+                    url: writeResult.uri,
+                    dialogTitle: 'Save Tahara Data'
+                });
+                return true;
+            } catch (err) {
+                console.error("Native Capacitor export failed", err);
+                return false; // Show nothing if user cancelled
+            }
+        }
+
+        // --- 2. STANDARD WEB PWA (Browser) ---
+        // Try Web Share API for Mobile Browsers
+        if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
+            try {
+                const file = new File([jsonStr], fileName, {type: "text/plain"});
+                if (navigator.canShare && navigator.canShare({files: [file]})) {
+                    await navigator.share({files: [file]});
+                    return true;
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') return false;
+            }
+        }
+
+        // Web Fallback: Standard DOM Download
+        try {
+            const blob = new Blob([jsonStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = url;
+            a.download = fileName;
+
+            document.body.appendChild(a);
+            a.click();
+
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 150);
+            return true;
+        } catch (e) {
+            console.error("Web export failed", e);
+            return false;
+        }
+    };
+
+    window.exportDiagnostics = async () => {
         const diagnosticData = {
             app_version: el("appVersion")?.innerText || "Unknown",
             platform: navigator.userAgent,
             language: App.currentLang,
-            error_history: ErrorLog.logs,
-            // We do NOT export history/logs here to protect PII privacy
+            error_history: ErrorLog.logs
         };
-        const blob = new Blob([JSON.stringify(diagnosticData, null, 2)], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
+        const fileName = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.txt`; // .txt is safer for Android
+
+        const success = await window.safeDownloadJSON(diagnosticData, fileName);
+        if (success) showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
     };
 
     // ==========================================
@@ -577,7 +687,7 @@ import {TaharaEngine} from './engine.js';
                     <span class="text-sm font-bold ${color}">${label}</span>
                     <span class="text-[10px] text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
                 </div>
-                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">
+                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all">
                     <span class="text-lg">🗑️</span>
                 </button>
             </div>`;
@@ -716,7 +826,7 @@ import {TaharaEngine} from './engine.js';
 
     async function exportData() {
         const data = {
-            schema_version: CURRENT_SCHEMA_VERSION, // Added schema version
+            schema_version: CURRENT_SCHEMA_VERSION,
             tahara_status: App.status,
             tahara_last_changed: App.lastChanged,
             tahara_history: App.history,
@@ -725,40 +835,16 @@ import {TaharaEngine} from './engine.js';
             export_date: new Date().toISOString()
         };
 
-        const jsonStr = JSON.stringify(data, null, 2);
-        const fileName = `tahara-backup-${new Date().toISOString().split('T')[0]}.json`;
+        // Using .txt extension for the actual file makes Android Web Share 10x more reliable
+        const fileName = `tahara-backup-${new Date().toISOString().split('T')[0]}.txt`;
 
-        // Mobile / Capacitor flow (Web Share API)
-        if (navigator.share && navigator.canShare) {
-            try {
-                const file = new File([jsonStr], fileName, {type: "application/json"});
-                if (navigator.canShare({files: [file]})) {
-                    await navigator.share({
-                        title: S("app_title", "Tahara Backup"),
-                        text: "My Tahara App Data Backup",
-                        files: [file]
-                    });
-                    return; // Stop here if share was successful
-                }
-            } catch (err) {
-                console.log("Sharing failed or cancelled", err);
-            }
+        const success = await window.safeDownloadJSON(data, fileName);
+
+        if (success) {
+            localStorage.setItem("tahara_last_backup", new Date().toISOString());
+            updateSettingsUI(); // Ensure warning dot disappears
+            showToast("toast_backup_success", "success", "Backup saved");
         }
-
-        // Fallback: Standard Web Download
-        const blob = new Blob([jsonStr], {type: "application/json"});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        localStorage.setItem("tahara_last_backup", new Date().toISOString());
-        // Re-render settings to hide the reminder dot immediately
-        updateSettingsUI(); // FIXED
-        showToast("toast_backup_success", "success", "Backup saved");
     }
 
     function importData() {
