@@ -16,25 +16,26 @@ import { TaharaEngine } from "./engine.js";
         avgCycleLength: 0,
         avgHaydLength: 0
     };
-    async function safeDownloadJSON(dataObj, fileName) {
+    window.safeDownloadJSON = async (dataObj, fileName) => {
         const jsonStr = JSON.stringify(dataObj, null, 2);
-        if (navigator.share) {
+        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             try {
-                const file = new File([ jsonStr ], fileName, {
-                    type: "text/plain"
+                const {Filesystem: Filesystem, Share: Share} = Capacitor.Plugins;
+                const writeResult = await Filesystem.writeFile({
+                    path: fileName,
+                    data: jsonStr,
+                    directory: "CACHE",
+                    encoding: "utf8"
                 });
-                if (navigator.canShare && navigator.canShare({
-                    files: [ file ]
-                })) {
-                    await navigator.share({
-                        title: S("app_title", "Tahara Export"),
-                        files: [ file ]
-                    });
-                    return true;
-                }
+                await Share.share({
+                    title: "Tahara Data",
+                    url: writeResult.uri,
+                    dialogTitle: "Save Tahara Data"
+                });
+                return true;
             } catch (err) {
-                console.log("Share API cancelled or failed", err);
-                if (err.name === "AbortError") return false;
+                console.error("Native Capacitor export failed", err);
+                return false;
             }
         }
         try {
@@ -54,10 +55,10 @@ import { TaharaEngine } from "./engine.js";
             }, 150);
             return true;
         } catch (e) {
-            console.error("Download failed", e);
+            console.error("Web export failed", e);
             return false;
         }
-    }
+    };
     const ErrorLog = {
         logs: [],
         add(err) {
@@ -144,7 +145,7 @@ import { TaharaEngine } from "./engine.js";
             language: App.currentLang,
             error_history: ErrorLog.logs
         };
-        const fileName = `tahara-diagnostics-${(new Date).toISOString().split("T")[0]}.txt`;
+        const fileName = `tahara-diagnostics-${(new Date).toISOString().split("T")[0]}.json`;
         const success = await window.safeDownloadJSON(diagnosticData, fileName);
         if (success) showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
     };
@@ -677,7 +678,7 @@ import { TaharaEngine } from "./engine.js";
             tahara_logs: App.dailyLogs,
             export_date: (new Date).toISOString()
         };
-        const fileName = `tahara-backup-${(new Date).toISOString().split("T")[0]}.txt`;
+        const fileName = `tahara-backup-${(new Date).toISOString().split("T")[0]}.json`;
         const success = await window.safeDownloadJSON(data, fileName);
         if (success) {
             localStorage.setItem("tahara_last_backup", (new Date).toISOString());
@@ -688,7 +689,7 @@ import { TaharaEngine } from "./engine.js";
     function importData() {
         const input = document.createElement("input");
         input.type = "file";
-        input.accept = ".json";
+        input.accept = "*/*";
         input.onchange = e => {
             const file = e.target.files[0];
             if (!file) return;
