@@ -917,6 +917,10 @@ import { TaharaEngine } from "./engine.js";
             App.defaultStrings = raw["en"];
         } catch (e) {
             console.error("Failed to load strings", e);
+        } finally {
+            requestAnimationFrame(() => {
+                document.documentElement.style.opacity = "1";
+            });
         }
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
         document.documentElement.lang = App.currentLang;
@@ -1068,13 +1072,12 @@ import { TaharaEngine } from "./engine.js";
         if (!container || el("update-toast")) return;
         const toast = document.createElement("div");
         toast.id = "update-toast";
-        toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-slate-900 dark:bg-white text-white dark:text-slate-900 border border-slate-700 dark:border-slate-300 animate-fade-in";
+        toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-white dark:bg-[#2d2426] text-slate-700 dark:text-rose-100 border border-slate-200 dark:border-white/10 animate-fade-in";
         toast.innerHTML = `\n            <div class="flex flex-col">\n                <span class="text-[10px] uppercase tracking-widest opacity-70">${S("app_title", "Tahara")}</span>\n                <span class="text-xs font-bold">${S("update_available", "Update ready!")}</span>\n            </div>\n            <button id="execRefresh" class="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all">\n                ${S("btn_refresh", "REFRESH")}\n            </button>\n        `;
         container.appendChild(toast);
         const btn = el("execRefresh");
         btn.onclick = e => {
             e.stopPropagation();
-            console.log("REFRESH CLICKED - Executing Update...");
             userApprovedRefresh = true;
             const worker = reg.waiting || reg.installing || reg.active;
             if (worker) {
