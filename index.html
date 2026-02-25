@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+          content="default-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,7 +40,7 @@
     <link rel="alternate" hreflang="es" href="https://tahara.open-waqf.org/?lang=es">
     <link rel="alternate" hreflang="it" href="https://tahara.open-waqf.org/?lang=it">
 </head>
-<body class="transition-colors duration-300 bg-rose-50/30 text-slate-700">
+<body class="flex flex-col min-h-screen transition-colors duration-300 bg-rose-50/30 dark:bg-[#1a1617] text-slate-700">
 <nav class="px-6 pb-2 pt-[calc(1.5rem+env(safe-area-inset-top))] flex justify-between items-center bg-transparent z-40 relative">
     <h1 class="text-2xl font-serif italic text-rose-400">طهارة</h1>
     <div class="flex items-center gap-4">
@@ -382,7 +382,7 @@
             data-i18n="onb_skip">Skip
     </button>
 
-    <div class="flex-grow flex flex-col items-center justify-center p-8 text-center sm:max-w-md sm:mx-auto relative w-full mt-10">
+    <div class="grow flex flex-col items-center justify-center p-8 text-center sm:max-w-md sm:mx-auto relative w-full mt-10">
 
         <div id="onb-step-1" class="onb-step animate-fade-in flex flex-col items-center w-full">
             <div class="w-24 h-24 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center text-5xl mb-8">
@@ -425,8 +425,7 @@
     </div>
 </div>
 <div id="toast-container"
-     class="fixed bottom-24 start-1/2 transform -translate-x-1/2 rtl:translate-x-1/2 flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4 items-center"
-     style="z-index: 99999;"></div>
+     class="fixed inset-0 pointer-events-none z-[99999] flex flex-col items-center justify-end p-6 pb-28"></div>
 <script type="module" src="./script.js"></script>
 </body>
 </html>
