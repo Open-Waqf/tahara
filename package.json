@@ -1,6 +1,6 @@
 {
   "name": "tahara",
-  "version": "1.7.0",
+  "version": "2",
   "description": "Private Islamic Purity Tracker",
   "main": "index.js",
   "scripts": {

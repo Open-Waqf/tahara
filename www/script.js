@@ -310,6 +310,9 @@ import {TaharaEngine} from './engine.js';
         if (!lastBackupStr && App.history.length > 0) needsBackup = true;
         else if (lastBackupStr && (new Date() - new Date(lastBackupStr)) / 86400000 >= 30) needsBackup = true;
 
+        const fastingToggle = el("fastingReminderToggle");
+        if (fastingToggle) fastingToggle.checked = App.fastingReminderEnabled;
+
         const sign = el("settingsWarningSign");
         const navDot = el("settingsNavDot");
         if (sign) needsBackup ? sign.classList.remove("hidden") : sign.classList.add("hidden");
@@ -345,7 +348,10 @@ import {TaharaEngine} from './engine.js';
     const NotificationManager = {
         async init() {
             App.reminderEnabled = localStorage.getItem("tahara_reminder_enabled") === "true";
-            App.reminderTime = localStorage.getItem("tahara_reminder_time") || "20:00"; // 8 PM Default
+            App.reminderTime = localStorage.getItem("tahara_reminder_time") || "20:00";
+
+            // Default to true. It will ONLY trigger if debt > 0 anyway.
+            App.fastingReminderEnabled = localStorage.getItem("tahara_fasting_reminder") !== "false";
         },
 
         async requestPermission() {
@@ -362,36 +368,68 @@ import {TaharaEngine} from './engine.js';
 
         async scheduleDaily() {
             if (!App.reminderEnabled) return this.cancelAll();
-
             const [hours, minutes] = App.reminderTime.split(':').map(Number);
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const {LocalNotifications} = Capacitor.Plugins;
+                await LocalNotifications.cancel({notifications: [{id: 1}]});
+                await LocalNotifications.schedule({
+                    notifications: [{
+                        title: S("notif_title", "Tahara Check-in"),
+                        body: S("notif_body", "Don't forget to log your mood and symptoms today."),
+                        id: 1,
+                        schedule: {on: {hour: hours, minute: minutes}, repeats: true},
+                        sound: null
+                    }]
+                });
+            }
+        },
+
+        // --- NEW: FASTING REMINDER LOGIC ---
+        async scheduleFastingReminder() {
+            const debt = App.fasting.missed - App.fasting.paid;
+
+            // If no debt or user disabled it, destroy the notification
+            if (debt <= 0 || !App.fastingReminderEnabled) {
+                return this.cancelFastingReminder();
+            }
 
             if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
                 const {LocalNotifications} = Capacitor.Plugins;
-                await LocalNotifications.cancel({notifications: [{id: 1}]}); // Clear old
+                await LocalNotifications.cancel({notifications: [{id: 2}]}); // Clear old one
+
+                let bodyText = S("notif_fasting_body", "You have %d days of Ramadan fasting left to make up.");
+                bodyText = bodyText.replace('%d', debt); // Inject the real number dynamically!
 
                 await LocalNotifications.schedule({
-                    notifications: [
-                        {
-                            title: S("notif_title", "Tahara Check-in"),
-                            body: S("notif_body", "Don't forget to log your mood and symptoms today."),
-                            id: 1,
-                            schedule: {on: {hour: hours, minute: minutes}, repeats: true},
-                            sound: null
-                        }
-                    ]
+                    notifications: [{
+                        title: S("notif_fasting_title", "Fasting Reminder"),
+                        body: bodyText,
+                        id: 2,
+                        // Capacitor Weekday: 1 = Sunday, 2 = Monday, 7 = Saturday
+                        // Scheduled for Sunday at 6:00 PM (18:00)
+                        schedule: {on: {weekday: 1, hour: 18, minute: 0}, repeats: true},
+                        sound: null
+                    }]
                 });
+            }
+        },
+
+        async cancelFastingReminder() {
+            if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+                const {LocalNotifications} = Capacitor.Plugins;
+                await LocalNotifications.cancel({notifications: [{id: 2}]});
             }
         },
 
         async cancelAll() {
             if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
                 const {LocalNotifications} = Capacitor.Plugins;
-                await LocalNotifications.cancel({notifications: [{id: 1}]});
+                await LocalNotifications.cancel({notifications: [{id: 1}, {id: 2}]});
             }
         },
 
-        // Best-effort Web Fallback (triggers if tab is open)
         checkWebFallback() {
+            // ... (keep your existing checkWebFallback logic here exactly as it is) ...
             if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) return;
             if (!App.reminderEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
 
@@ -663,6 +701,25 @@ import {TaharaEngine} from './engine.js';
         NotificationManager.scheduleDaily();
     });
 
+    // Handle Fasting Reminder Toggle
+    const fastingToggleEl = el("fastingReminderToggle");
+    if (fastingToggleEl) {
+        fastingToggleEl.addEventListener("change", async (e) => {
+            const isEnabled = e.target.checked;
+            if (isEnabled) {
+                const granted = await NotificationManager.requestPermission();
+                if (!granted) {
+                    e.target.checked = false;
+                    alert(S("notif_denied", "Notification permission was denied."));
+                    return;
+                }
+            }
+            App.fastingReminderEnabled = isEnabled;
+            localStorage.setItem("tahara_fasting_reminder", isEnabled);
+            NotificationManager.scheduleFastingReminder(); // This will auto-cancel if debt is 0
+        });
+    }
+
     // Handle Reminder Time Change
     el("reminderTime").addEventListener("change", (e) => {
         App.reminderTime = e.target.value;
@@ -817,6 +874,7 @@ import {TaharaEngine} from './engine.js';
         if (newVal >= 0) {
             App.fasting.missed = newVal;
             saveFasting();
+            NotificationManager.scheduleFastingReminder()
         }
     };
     window.updatePaid = (delta) => {
@@ -824,6 +882,7 @@ import {TaharaEngine} from './engine.js';
         if (newVal >= 0 && newVal <= App.fasting.missed) {
             App.fasting.paid = newVal;
             saveFasting();
+            NotificationManager.scheduleFastingReminder()
         }
     };
 
@@ -1021,6 +1080,7 @@ import {TaharaEngine} from './engine.js';
 
         saveState();
         saveFasting();
+        NotificationManager.scheduleFastingReminder();
         localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
 
         window.cancelRestore();
@@ -1078,6 +1138,7 @@ import {TaharaEngine} from './engine.js';
                 renderFullInsights();
                 updateSettingsUI(); // Ensure warning dots reset
                 updateLiveCounter();
+                NotificationManager.scheduleFastingReminder();
 
                 // Show the toast safely
                 showToast("toast_data_cleared", "error", "All data reset");
