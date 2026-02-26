@@ -133,7 +133,11 @@
     "last_logged": "Last logged:",
     "settings_diagnostic_title": "Export Diagnostics",
     "settings_diagnostic_desc": "Technical logs for troubleshooting.",
-    "toast_diagnostic_exported": "Diagnostic log saved locally."
+    "toast_diagnostic_exported": "Diagnostic log saved locally.",
+    "fasting_reminder_toggle": "Fasting Reminder",
+    "fasting_reminder_desc": "Weekly update if you have a debt.",
+    "notif_fasting_title": "Fasting Reminder",
+    "notif_fasting_body": "You have %d days of Ramadan fasting left to make up."
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -264,7 +268,11 @@
     "last_logged": "آخر تسجيل:",
     "settings_diagnostic_title": "تصدير بيانات التشخيص",
     "settings_diagnostic_desc": "سجلات تقنية لاستكشاف الأخطاء وإصلاحها.",
-    "toast_diagnostic_exported": "تم حفظ سجل التشخيص محلياً."
+    "toast_diagnostic_exported": "تم حفظ سجل التشخيص محلياً.",
+    "fasting_reminder_toggle": "تذكير الصيام",
+    "fasting_reminder_desc": "تحديث أسبوعي إذا كان عليك قضاء.",
+    "notif_fasting_title": "تذكير بقضاء الصيام",
+    "notif_fasting_body": "تبقى عليك %d أيام من صيام رمضان للقضاء."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -395,7 +403,10 @@
     "last_logged": "Dernier enregistrement :",
     "settings_diagnostic_title": "Exporter les diagnostics",
     "settings_diagnostic_desc": "Journaux techniques pour le dépannage.",
-    "toast_diagnostic_exported": "Journal de diagnostic enregistré localement."
+    "fasting_reminder_toggle": "Rappel de Jeûne",
+    "fasting_reminder_desc": "Mise à jour hebdomadaire si vous avez une dette.",
+    "notif_fasting_title": "Rappel de Jeûne",
+    "notif_fasting_body": "Il vous reste %d jours de jeûne de Ramadan à rattraper."
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -526,7 +537,11 @@
     "last_logged": "Último registro:",
     "settings_diagnostic_title": "Exportar diagnósticos",
     "settings_diagnostic_desc": "Registros técnicos para resolución de problemas.",
-    "toast_diagnostic_exported": "Registro de diagnóstico guardado localmente."
+    "toast_diagnostic_exported": "Registro de diagnóstico guardado localmente.",
+    "fasting_reminder_toggle": "Recordatorio de Ayuno",
+    "fasting_reminder_desc": "Actualización semanal si tienes una deuda.",
+    "notif_fasting_title": "Recordatorio de Ayuno",
+    "notif_fasting_body": "Te quedan %d días de ayuno de Ramadán por recuperar."
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -657,6 +672,10 @@
     "last_logged": "Ultimo registro:",
     "settings_diagnostic_title": "Esporta diagnostica",
     "settings_diagnostic_desc": "Log tecnici per la risoluzione dei problemi.",
-    "toast_diagnostic_exported": "Registro diagnostico salvato localmente."
+    "toast_diagnostic_exported": "Registro diagnostico salvato localmente.",
+    "fasting_reminder_toggle": "Promemoria Digiuno",
+    "fasting_reminder_desc": "Aggiornamento settimanale se hai un debito.",
+    "notif_fasting_title": "Promemoria Digiuno",
+    "notif_fasting_body": "Ti restano %d giorni di digiuno del Ramadan da recuperare."
   }
 }

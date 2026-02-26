@@ -244,6 +244,8 @@ import { TaharaEngine } from "./engine.js";
         const lastBackupStr = localStorage.getItem("tahara_last_backup");
         let needsBackup = false;
         if (!lastBackupStr && App.history.length > 0) needsBackup = true; else if (lastBackupStr && (new Date - new Date(lastBackupStr)) / 864e5 >= 30) needsBackup = true;
+        const fastingToggle = el("fastingReminderToggle");
+        if (fastingToggle) fastingToggle.checked = App.fastingReminderEnabled;
         const sign = el("settingsWarningSign");
         const navDot = el("settingsNavDot");
         if (sign) needsBackup ? sign.classList.remove("hidden") : sign.classList.add("hidden");
@@ -275,6 +277,7 @@ import { TaharaEngine } from "./engine.js";
         async init() {
             App.reminderEnabled = localStorage.getItem("tahara_reminder_enabled") === "true";
             App.reminderTime = localStorage.getItem("tahara_reminder_time") || "20:00";
+            App.fastingReminderEnabled = localStorage.getItem("tahara_fasting_reminder") !== "false";
         },
         async requestPermission() {
             if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform()) {
@@ -314,12 +317,56 @@ import { TaharaEngine } from "./engine.js";
                 });
             }
         },
+        async scheduleFastingReminder() {
+            const debt = App.fasting.missed - App.fasting.paid;
+            if (debt <= 0 || !App.fastingReminderEnabled) {
+                return this.cancelFastingReminder();
+            }
+            if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform()) {
+                const {LocalNotifications: LocalNotifications} = Capacitor.Plugins;
+                await LocalNotifications.cancel({
+                    notifications: [ {
+                        id: 2
+                    } ]
+                });
+                let bodyText = S("notif_fasting_body", "You have %d days of Ramadan fasting left to make up.");
+                bodyText = bodyText.replace("%d", debt);
+                await LocalNotifications.schedule({
+                    notifications: [ {
+                        title: S("notif_fasting_title", "Fasting Reminder"),
+                        body: bodyText,
+                        id: 2,
+                        schedule: {
+                            on: {
+                                weekday: 1,
+                                hour: 18,
+                                minute: 0
+                            },
+                            repeats: true
+                        },
+                        sound: null
+                    } ]
+                });
+            }
+        },
+        async cancelFastingReminder() {
+            if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform()) {
+                const {LocalNotifications: LocalNotifications} = Capacitor.Plugins;
+                await LocalNotifications.cancel({
+                    notifications: [ {
+                        id: 2
+                    } ]
+                });
+            }
+        },
         async cancelAll() {
             if (typeof Capacitor !== "undefined" && Capacitor.isNativePlatform()) {
                 const {LocalNotifications: LocalNotifications} = Capacitor.Plugins;
                 await LocalNotifications.cancel({
                     notifications: [ {
                         id: 1
+                    }, {
+                        id: 2
                     } ]
                 });
             }
@@ -534,6 +581,23 @@ import { TaharaEngine } from "./engine.js";
         localStorage.setItem("tahara_reminder_enabled", isEnabled);
         NotificationManager.scheduleDaily();
     });
+    const fastingToggleEl = el("fastingReminderToggle");
+    if (fastingToggleEl) {
+        fastingToggleEl.addEventListener("change", async e => {
+            const isEnabled = e.target.checked;
+            if (isEnabled) {
+                const granted = await NotificationManager.requestPermission();
+                if (!granted) {
+                    e.target.checked = false;
+                    alert(S("notif_denied", "Notification permission was denied."));
+                    return;
+                }
+            }
+            App.fastingReminderEnabled = isEnabled;
+            localStorage.setItem("tahara_fasting_reminder", isEnabled);
+            NotificationManager.scheduleFastingReminder();
+        });
+    }
     el("reminderTime").addEventListener("change", e => {
         App.reminderTime = e.target.value;
         localStorage.setItem("tahara_reminder_time", App.reminderTime);
@@ -659,6 +723,7 @@ import { TaharaEngine } from "./engine.js";
         if (newVal >= 0) {
             App.fasting.missed = newVal;
             saveFasting();
+            NotificationManager.scheduleFastingReminder();
         }
     };
     window.updatePaid = delta => {
@@ -666,6 +731,7 @@ import { TaharaEngine } from "./engine.js";
         if (newVal >= 0 && newVal <= App.fasting.missed) {
             App.fasting.paid = newVal;
             saveFasting();
+            NotificationManager.scheduleFastingReminder();
         }
     };
     async function exportData() {
@@ -778,6 +844,7 @@ import { TaharaEngine } from "./engine.js";
         localStorage.setItem("tahara_schema_version", (pendingImportData.schema_version || 1).toString());
         saveState();
         saveFasting();
+        NotificationManager.scheduleFastingReminder();
         localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
         window.cancelRestore();
         location.reload();
@@ -820,6 +887,7 @@ import { TaharaEngine } from "./engine.js";
             renderFullInsights();
             updateSettingsUI();
             updateLiveCounter();
+            NotificationManager.scheduleFastingReminder();
             showToast("toast_data_cleared", "error", "All data reset");
         });
     }
