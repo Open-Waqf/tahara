@@ -1,4 +1,5 @@
 import {TaharaEngine} from './engine.js';
+import {TaharaDB, STORES} from './db.js';
 
 (() => {
     // ==========================================
@@ -9,69 +10,16 @@ import {TaharaEngine} from './engine.js';
         defaultStrings: {},
         currentLang: localStorage.getItem("tahara_userLang") || (['ar', 'fr', 'es', 'it'].includes(navigator.language.split('-')[0]) ? navigator.language.split('-')[0] : 'en'),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
-        status: localStorage.getItem("tahara_status") || "purity",
-        lastChanged: localStorage.getItem("tahara_last_changed") || new Date().toISOString(),
-        history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
-        fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}'),
-        dailyLogs: JSON.parse(localStorage.getItem("tahara_logs") || "{}"),
+        status: "purity",
+        lastChanged: new Date().toISOString(),
+        history: [],
+        fasting: {"missed": 0, "paid": 0},
+        dailyLogs: {},
         selectedDate: new Date(),
 
         modalOpen: false,
         avgCycleLength: 0,
         avgHaydLength: 0
-    };
-
-    // ==========================================
-    // BULLETPROOF HYBRID EXPORT HELPER
-    // ==========================================
-    window.safeDownloadJSON = async (dataObj, fileName) => {
-        const jsonStr = JSON.stringify(dataObj, null, 2);
-
-        // --- 1. CAPACITOR NATIVE ANDROID / IOS ---
-        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-            try {
-                const {Filesystem, Share} = Capacitor.Plugins;
-                const writeResult = await Filesystem.writeFile({
-                    path: fileName,
-                    data: jsonStr,
-                    directory: 'CACHE', // Best location for temporary file sharing
-                    encoding: 'utf8'
-                });
-
-                await Share.share({
-                    title: 'Tahara Data',
-                    url: writeResult.uri,
-                    dialogTitle: 'Save Tahara Data'
-                });
-                return true;
-            } catch (err) {
-                console.error("Native Capacitor export failed", err);
-                return false;
-            }
-        }
-
-        // --- 2. STANDARD WEB PWA (Browser) ---
-        // Simple, clean DOM download. Works reliably on all modern mobile/desktop browsers.
-        try {
-            const blob = new Blob([jsonStr], {type: "application/json"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.style.display = "none";
-            a.href = url;
-            a.download = fileName;
-
-            document.body.appendChild(a);
-            a.click();
-
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 150);
-            return true;
-        } catch (e) {
-            console.error("Web export failed", e);
-            return false;
-        }
     };
 
     // E3: Local Error Logger
@@ -218,32 +166,61 @@ import {TaharaEngine} from './engine.js';
     // ==========================================
     const CURRENT_SCHEMA_VERSION = 1;
 
-    function runDataMigrations() {
-        // If there's no version, but there IS history, the user is implicitly on v1.
-        // If there's no version and no history, it's a fresh install (also v1).
-        const hasExistingData = localStorage.getItem("tahara_history") !== null;
+    async function runDataMigrations() {
+        // Initialize TaharaDB first
+        await TaharaDB.init();
+
+        const hasExistingLocalStorage = localStorage.getItem("tahara_history") !== null;
         let userVersion = parseInt(localStorage.getItem("tahara_schema_version"));
 
         if (isNaN(userVersion)) {
-            userVersion = hasExistingData ? 1 : CURRENT_SCHEMA_VERSION;
+            userVersion = hasExistingLocalStorage ? 1 : CURRENT_SCHEMA_VERSION;
         }
 
-        // --- MIGRATION STEPS GO HERE IN THE FUTURE ---
-        // Example for future:
-        // if (userVersion === 1) {
-        //     console.log("Migrating from v1 to v2...");
-        //     let history = JSON.parse(localStorage.getItem("tahara_history") || "[]");
-        //     // Transform history data here without deleting unknown fields
-        //     localStorage.setItem("tahara_history", JSON.stringify(history));
-        //     userVersion = 2;
-        // }
+        // --- MIGRATION: localStorage -> IndexedDB ---
+        if (hasExistingLocalStorage) {
+            console.log("Migrating sensitive data to IndexedDB...");
+
+            try {
+                const history = JSON.parse(localStorage.getItem("tahara_history") || "[]");
+                const fasting = JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}');
+                const logs = JSON.parse(localStorage.getItem("tahara_logs") || "{}");
+                const status = localStorage.getItem("tahara_status") || "purity";
+                const lastChanged = localStorage.getItem("tahara_last_changed") || new Date().toISOString();
+
+                await TaharaDB.set(STORES.HISTORY, Array.isArray(history) ? history : []);
+                await TaharaDB.set(STORES.FASTING, (fasting && typeof fasting === 'object') ? fasting : {"missed": 0, "paid": 0});
+                await TaharaDB.set(STORES.LOGS, (logs && typeof logs === 'object') ? logs : {});
+                await TaharaDB.set(STORES.STATUS, {status, lastChanged});
+            } catch (err) {
+                console.error("Migration parse error - some data may be lost:", err);
+                // We don't throw, we just proceed with whatever we can or defaults
+            }
+
+            // Clean up localStorage - we do this even if parse failed to stop migration loop
+            localStorage.removeItem("tahara_history");
+            localStorage.removeItem("tahara_fasting");
+            localStorage.removeItem("tahara_logs");
+            localStorage.removeItem("tahara_status");
+            localStorage.removeItem("tahara_last_changed");
+
+            console.log("Migration complete.");
+        }
+
+        // --- LOAD DATA FROM IndexedDB INTO APP STATE ---
+        App.history = await TaharaDB.get(STORES.HISTORY) || [];
+        App.fasting = await TaharaDB.get(STORES.FASTING) || {"missed": 0, "paid": 0};
+        App.dailyLogs = await TaharaDB.get(STORES.LOGS) || {};
+        const statusData = await TaharaDB.get(STORES.STATUS) || {status: "purity", lastChanged: new Date().toISOString()};
+        App.status = statusData.status;
+        App.lastChanged = statusData.lastChanged;
 
         // Finalize: Ensure the schema version is saved
         localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
     }
 
-    // RUN MIGRATIONS BEFORE ANYTHING ELSE
-    runDataMigrations();
+    // RUN MIGRATIONS BEFORE ANYTHING ELSE (Moved to init)
+    // runDataMigrations();
 
     function S(key, fallback) {
         if (App.uiStrings[key]) return App.uiStrings[key];
@@ -650,7 +627,7 @@ import {TaharaEngine} from './engine.js';
     }
 
     // FIX: Exclusive Moods Logic
-    window.toggleLog = (tagKey) => {
+    window.toggleLog = async (tagKey) => {
         const dateKey = getIsoDate(App.selectedDate);
         if (!App.dailyLogs[dateKey]) App.dailyLogs[dateKey] = [];
 
@@ -675,7 +652,7 @@ import {TaharaEngine} from './engine.js';
         }
 
         if (App.dailyLogs[dateKey].length === 0) delete App.dailyLogs[dateKey];
-        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
+        await TaharaDB.set(STORES.LOGS, App.dailyLogs);
 
         renderLogUI();
         renderCalendar();
@@ -754,8 +731,8 @@ import {TaharaEngine} from './engine.js';
         }).join('');
     }
 
-    function deleteSpecificEntry(index) {
-        showConfirmModal("delete_title", "delete_confirm", "btn_delete", () => {
+    async function deleteSpecificEntry(index) {
+        showConfirmModal("delete_title", "delete_confirm", "btn_delete", async () => {
             App.history.splice(index, 1);
 
             // If we deleted the "active" status (index 0), update current app state
@@ -769,7 +746,7 @@ import {TaharaEngine} from './engine.js';
                 }
             }
 
-            saveState();
+            await saveState();
             updateStatusUI();
             renderFullInsights();
             updateLiveCounter();
@@ -780,18 +757,17 @@ import {TaharaEngine} from './engine.js';
     // ==========================================
     // 7. STATE & ACTIONS
     // ==========================================
-    function saveState() {
-        localStorage.setItem("tahara_status", App.status);
-        localStorage.setItem("tahara_history", JSON.stringify(App.history));
-        localStorage.setItem("tahara_last_changed", App.lastChanged);
+    async function saveState() {
+        await TaharaDB.set(STORES.HISTORY, App.history);
+        await TaharaDB.set(STORES.STATUS, {status: App.status, lastChanged: App.lastChanged});
     }
 
-    function toggleStatus() {
+    async function toggleStatus() {
         App.status = App.status === "purity" ? "hayd" : "purity";
         App.lastChanged = new Date().toISOString();
         App.history.unshift({status: App.status, time: App.lastChanged});
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
-        saveState();
+        await saveState();
         updateStatusUI();
         const statusLabel = App.status === "purity" ? S("status_purity") : S("status_hayd");
         window.announce(`${S("announce_status")} ${statusLabel}`);
@@ -855,8 +831,8 @@ import {TaharaEngine} from './engine.js';
         }
     }
 
-    function saveFasting() {
-        localStorage.setItem("tahara_fasting", JSON.stringify(App.fasting));
+    async function saveFasting() {
+        await TaharaDB.set(STORES.FASTING, App.fasting);
         updateFastingUI();
     }
 
@@ -869,19 +845,19 @@ import {TaharaEngine} from './engine.js';
         if (dot) (remaining > 0) ? dot.classList.remove("hidden") : dot.classList.add("hidden");
     }
 
-    window.updateDebt = (delta) => {
+    window.updateDebt = async (delta) => {
         const newVal = App.fasting.missed + delta;
         if (newVal >= 0) {
             App.fasting.missed = newVal;
-            saveFasting();
+            await saveFasting();
             NotificationManager.scheduleFastingReminder()
         }
     };
-    window.updatePaid = (delta) => {
+    window.updatePaid = async (delta) => {
         const newVal = App.fasting.paid + delta;
         if (newVal >= 0 && newVal <= App.fasting.missed) {
             App.fasting.paid = newVal;
-            saveFasting();
+            await saveFasting();
             NotificationManager.scheduleFastingReminder()
         }
     };
@@ -1056,7 +1032,7 @@ import {TaharaEngine} from './engine.js';
         if (container) container.remove();
     };
 
-    window.confirmRestore = () => {
+    window.confirmRestore = async () => {
         if (!pendingImportData) return;
 
         const d = pendingImportData;
@@ -1078,10 +1054,10 @@ import {TaharaEngine} from './engine.js';
         // Save schema version of imported data (or 1 if old backup)
         localStorage.setItem("tahara_schema_version", (pendingImportData.schema_version || 1).toString());
 
-        saveState();
-        saveFasting();
+        await saveState();
+        await saveFasting();
         NotificationManager.scheduleFastingReminder();
-        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
+        await TaharaDB.set(STORES.LOGS, App.dailyLogs);
 
         window.cancelRestore();
         location.reload(); // Reload to run migrations if an older version was imported
@@ -1094,7 +1070,7 @@ import {TaharaEngine} from './engine.js';
             "delete_title",
             "delete_confirm",
             "btn_delete",
-            () => {
+            async () => {
                 App.history.shift();
                 if (App.history.length > 0) {
                     App.status = App.history[0].status;
@@ -1103,7 +1079,7 @@ import {TaharaEngine} from './engine.js';
                     App.status = "purity";
                     App.lastChanged = new Date().toISOString();
                 }
-                saveState();
+                await saveState();
                 updateStatusUI();
                 renderFullInsights();
                 showToast("toast_entry_deleted", "neutral", "Entry removed");
@@ -1117,8 +1093,9 @@ import {TaharaEngine} from './engine.js';
             "clear_title",
             "clear_confirm",
             "clear_data",
-            () => {
+            async () => {
                 localStorage.clear();
+                await TaharaDB.clearAll();
                 App.history = [];
                 App.fasting = {missed: 0, paid: 0};
                 App.status = "purity";
@@ -1130,8 +1107,8 @@ import {TaharaEngine} from './engine.js';
                 localStorage.setItem("tahara_darkMode", App.isDark);
 
                 // FIXED: Explicitly save the new empty state to storage
-                saveState();
-                saveFasting();
+                await saveState();
+                await saveFasting();
 
                 // Refresh the UI
                 updateStatusUI();
@@ -1332,6 +1309,9 @@ import {TaharaEngine} from './engine.js';
     }
 
     async function init() {
+        // --- 0. RUN MIGRATIONS & LOAD DATA ---
+        await runDataMigrations();
+
         // --- 1. CRITICAL PATH (Blocks UI until done) ---
         try {
             const res = await fetch("strings.json");

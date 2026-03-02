@@ -4,7 +4,7 @@
   "description": "Private Islamic Purity Tracker",
   "main": "index.js",
   "scripts": {
-    "dev": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
+    "dev": "npm run build:css && npx serve www",
     "build:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --minify",
     "watch:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
     "build": "npm run build:css",

