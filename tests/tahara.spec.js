@@ -259,4 +259,109 @@ test.describe('Tahara E2E UX Paths', () => {
         // CSP should cause a "Failed to fetch" error
         expect(fetchError).toContain('Failed to fetch');
     });
+
+    test('10. UI Logic: Symptom vs. Mood Selection (Test Case 6)', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="calendar"]').click();
+
+        const moodButtons = page.locator('#moodOptions button');
+        const symptomButtons = page.locator('#symptomOptions button');
+
+        // Mood: Radio behavior
+        await moodButtons.nth(0).click(); // Happy
+        await moodButtons.nth(1).click(); // Calm
+        await expect(moodButtons.nth(0)).not.toHaveClass(/bg-rose-500/);
+        await expect(moodButtons.nth(1)).toHaveClass(/bg-rose-500/);
+
+        // Symptoms: Checkbox behavior
+        await symptomButtons.nth(0).click(); // Cramps
+        await symptomButtons.nth(1).click(); // Headache
+        await expect(symptomButtons.nth(0)).toHaveClass(/bg-rose-500/);
+        await expect(symptomButtons.nth(1)).toHaveClass(/bg-rose-500/);
+    });
+
+    test('11. UI Logic: Calendar Future Date Prevention (Test Case 7)', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="calendar"]').click();
+
+        // Get initial selected date text
+        const initialDateText = await page.locator('#selectedDateText').innerText();
+
+        // Try to find a future date (opacity-40 class)
+        const futureDate = page.locator('#calendarDays div.opacity-40').first();
+        if (await futureDate.isVisible()) {
+            await futureDate.click();
+            const newDateText = await page.locator('#selectedDateText').innerText();
+            expect(newDateText).toBe(initialDateText);
+        }
+    });
+
+    test('12. UI Logic: Averages Empty State (Test Case 8)', async ({page}) => {
+        await page.goto('/');
+        await page.evaluate(() => {
+            localStorage.clear();
+            localStorage.setItem('tahara_onboarded', 'true');
+        });
+        // Set only 1 history entry (need 2 for averages)
+        await page.evaluate(async () => {
+            const request = indexedDB.open('tahara_db');
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                const tx = db.transaction(['history', 'status'], 'readwrite');
+                tx.objectStore('history').put([{status: 'hayd', time: new Date().toISOString()}]);
+                tx.objectStore('status').put({status: 'hayd', lastChanged: new Date().toISOString()});
+            };
+        });
+        await page.reload();
+        await page.locator('button[data-tab="calendar"]').click();
+
+        // Should NOT show NaN or 0d
+        const avgCycle = page.locator('#avgCycleText');
+        await expect(avgCycle).not.toContainText('NaN');
+        await expect(avgCycle).not.toContainText('0d');
+        // It should contain the empty state text (we'll check for its existence in strings.json later if needed, but for now we know it shouldn't be 0d)
+        
+        await expect(page.locator('#nextPeriodText')).toHaveText('--');
+    });
+
+    test('13. UI Logic: Settings Reminder Time Reveal (Test Case 9)', async ({page}) => {
+        await page.addInitScript(() => {
+            localStorage.setItem('tahara_onboarded', 'true');
+            // Mock Notification API
+            window.Notification = {
+                permission: 'granted',
+                requestPermission: async () => 'granted'
+            };
+        });
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const toggleVisual = page.locator('#reminderToggle + div');
+        const timeContainer = page.locator('#reminderTimeContainer');
+
+        await expect(timeContainer).toBeHidden();
+        await toggleVisual.click();
+        await expect(timeContainer).toBeVisible();
+        await toggleVisual.click();
+        await expect(timeContainer).toBeHidden();
+    });
+
+    test('14. UI Logic: Diagnostic JSON Export (Test Case 10)', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        // Intercept download
+        const downloadPromise = page.waitForEvent('download');
+        await page.locator('#settingsDiagnosticBtn').click();
+        const download = await downloadPromise;
+
+        expect(download.suggestedFilename()).toContain('tahara-diagnostics');
+        
+        // Verify toast
+        await expect(page.locator('#toast-container')).toContainText('Diagnostic log saved');
+    });
 });
+
