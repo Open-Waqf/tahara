@@ -4,7 +4,7 @@
     <script src="./theme-init.js"></script>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+          content="default-src 'self'; script-src 'self'; connect-src 'self' capacitor://localhost http://localhost; worker-src 'self' blob:; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';">
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -116,6 +116,7 @@
             <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1"
                   data-i18n="next_period">Next Expected</span>
             <span id="nextPeriodText" class="text-lg font-bold text-slate-600 dark:text-slate-200">--</span>
+            <p class="text-[9px] text-slate-400 mt-1 leading-tight" data-i18n="prediction_disclaimer">Estimated based on your history. Not a fiqh determination.</p>
         </div>
 
         <div id="calendar-container"
@@ -142,21 +143,33 @@
                       data-i18n="log_title">Daily Log</span>
                 <span id="selectedDateText" class="text-xs font-mono text-rose-400"></span>
             </div>
-            <p class="text-[10px] uppercase text-slate-300 font-bold mb-2 tracking-wider" data-i18n="cat_mood">Mood</p>
+            <p class="text-[10px] uppercase text-slate-300 dark:text-slate-600 font-bold mb-2 tracking-wider" data-i18n="cat_mood">Mood</p>
             <div id="moodOptions" class="flex flex-wrap gap-2 mb-6"></div>
-            <p class="text-[10px] uppercase text-slate-300 font-bold mb-2 tracking-wider" data-i18n="cat_symptoms">
-                Symptoms</p>
-            <div id="symptomOptions" class="flex flex-wrap gap-2"></div>
+
+            <p class="text-[10px] uppercase text-slate-300 dark:text-slate-600 font-bold mb-2 tracking-wider" data-i18n="cat_fiqh">Fiqh Details</p>
+            <div id="fiqhOptions" class="flex flex-wrap gap-2 mb-6"></div>
+
+            <p class="text-[10px] uppercase text-slate-300 dark:text-slate-600 font-bold mb-2 tracking-wider" data-i18n="cat_wellbeing">General Wellbeing</p>
+            <div id="wellbeingOptions" class="flex flex-wrap gap-2"></div>
         </div>
     </div>
+<div id="view-history" class="view-section hidden animate-fade-in">
+    <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="tab_history">History</h2>
+    <div id="fullHistoryList" class="space-y-3 mb-8"></div>
 
-    <div id="view-history" class="view-section hidden animate-fade-in">
-        <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="tab_history">History</h2>
-        <div id="fullHistoryList" class="space-y-3"></div>
+    <!-- Educational Reference Section -->
+    <div class="bg-rose-50 dark:bg-rose-900/10 p-5 rounded-3xl border border-rose-100 dark:border-rose-900/20 mt-10 text-center">
+        <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 mb-3 uppercase tracking-widest" data-i18n="health_reference_title">Health Guidelines Reference</h3>
+        <p class="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-i18n="health_reference_desc">
+            According to standard medical literature (e.g. WHO), typical menstrual cycles range from 21 to 35 days, with bleeding lasting 2 to 7 days.
+        </p>
+        <p class="text-[9px] text-rose-400/80 font-medium italic" data-i18n="disclaimer_factual">
+            This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace professional consultation.
+        </p>
     </div>
+</div>
 
-    <div id="view-fasting"
-         class="view-section hidden animate-fade-in flex flex-col items-center justify-center min-h-[60vh]">
+<div id="view-fasting"         class="view-section hidden animate-fade-in flex flex-col items-center justify-center min-h-[60vh]">
         <h2 class="text-xl font-serif italic text-amber-500 mb-2 text-center" data-i18n="tab_fasting">Fasting</h2>
         <span class="block text-xs uppercase tracking-widest text-slate-400 font-bold mb-8 text-center"
               data-i18n="fasting_title">Ramadan Ledger</span>
@@ -212,6 +225,37 @@
 
         <div class="mb-6">
             <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
+                  data-i18n="section_fiqh">Fiqh Rules</span>
+            <div class="bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/5">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-200 block"
+                              data-i18n="madhhab_select">Calculation Method</span>
+                        <span class="text-[10px] text-slate-400" data-i18n="madhhab_desc">Select your school of jurisprudence.</span>
+                    </div>
+                    <select id="madhhabSelect"
+                            class="bg-white dark:bg-[#1a1617] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-rose-400">
+                        <option value="hanafi" data-i18n="madhhab_hanafi">Hanafi</option>
+                        <option value="shafi" data-i18n="madhhab_shafi">Shafi'i</option>
+                        <option value="maliki" data-i18n="madhhab_maliki">Maliki</option>
+                        <option value="hanbali" data-i18n="madhhab_hanbali">Hanbali</option>
+                    </select>
+                </div>
+                <div id="habitContainer" class="mt-4 pt-4 border-t border-slate-200 dark:border-white/10 hidden">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-200 block" data-i18n="habit_label">Menstrual Habit</span>
+                            <span class="text-[10px] text-slate-400" data-i18n="habit_desc">Typical days of bleeding.</span>
+                        </div>
+                        <input type="number" id="habitInput" min="1" max="15" placeholder="6"
+                               class="w-16 bg-white dark:bg-[#1a1617] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:border-rose-400">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
                   data-i18n="section_notifications">Notifications</span>
             <div class="bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/5">
                 <div class="flex justify-between items-center mb-2">
@@ -247,6 +291,25 @@
 
         <div class="mb-6">
             <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
+                  data-i18n="section_vault">Privacy Vault</span>
+            <div class="bg-slate-50 dark:bg-white/5 rounded-3xl p-4 border border-slate-100 dark:border-white/5">
+                <div class="flex justify-between items-center mb-2">
+                    <div>
+                        <span class="text-sm font-bold text-slate-700 dark:text-slate-200 block"
+                              data-i18n="vault_toggle">Vault Mode</span>
+                        <span class="text-[10px] text-slate-400" data-i18n="vault_desc">Secure your data using your device's native security.</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" id="vaultToggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+                <p class="text-[9px] text-rose-400 mt-2 font-medium" data-i18n="vault_warning"> Lost PINs cannot be recovered; data will be lost.</p>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-3 px-2"
                   data-i18n="section_data">Data</span>
             <div class="bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/5 overflow-hidden flex flex-col">
                 <button id="settingsBackupBtn"
@@ -258,6 +321,9 @@
                         class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-left">
                     <span class="text-sm font-bold text-slate-600 dark:text-slate-300" data-i18n="btn_restore">Restore Data</span>
                 </button>
+                <p id="importLimitHint"
+                   class="px-4 py-2 text-[10px] text-slate-400 border-b border-slate-100 dark:border-white/5"
+                   data-i18n="import_limit_hint">Max import size: %size%</p>
                 <button id="settingsResetBtn"
                         class="flex items-center justify-between p-4 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors text-left">
                     <span class="text-sm font-bold text-rose-500" data-i18n="clear_data">Reset App Data</span>
@@ -433,6 +499,26 @@
         <button id="onbNextBtn"
                 class="action-btn w-full bg-rose-500 text-sm uppercase tracking-widest" data-i18n="onb_next">Next
         </button>
+    </div>
+</div>
+<div id="vaultLockScreen"
+     class="fixed inset-0 bg-white dark:bg-[#1a1617] backdrop-blur-xl flex flex-col items-center justify-center p-8 text-center hidden"
+     style="z-index: 100000;">
+    <div class="w-24 h-24 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center text-4xl mb-8 animate-pulse shadow-2xl shadow-rose-500/10">
+        🔒
+    </div>
+    <h2 class="text-3xl font-serif italic text-rose-500 mb-2" data-i18n="vault_lock_title">Tahara Vault</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mb-12 max-w-xs" data-i18n="vault_lock_desc">Your data is encrypted. Please authenticate to continue.</p>
+
+    <button id="vaultUnlockBtn"
+            class="w-full max-w-xs py-4 bg-rose-500 text-white rounded-full font-black shadow-lg shadow-rose-500/30 active:scale-95 transition-all flex items-center justify-center gap-3">
+        <span class="text-lg">👤</span>
+        <span data-i18n="vault_unlock_btn">Unlock App</span>
+    </button>
+
+    <div class="mt-auto w-full max-w-xs">
+        <button id="vaultPanicBtn"
+                class="w-full py-3 text-[10px] text-rose-400 font-bold uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity" data-i18n="vault_panic_btn">Emergency Reset</button>
     </div>
 </div>
 <div id="toast-container"

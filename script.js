@@ -1,64 +1,51 @@
 import { TaharaEngine } from "./engine.js";
 
+import { TaharaDB, STORES } from "./db.js";
+
+import { TaharaCrypto } from "./crypto.js";
+
+import { FiqhRules } from "./rules.js";
+
+import { normalizeBackupData } from "./backup.js";
+
+import { APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS } from "./constants.js";
+
 (() => {
     const App = {
-        uiStrings: {},
-        defaultStrings: {},
+        uiStrings: BUILTIN_FALLBACK_STRINGS,
+        defaultStrings: BUILTIN_FALLBACK_STRINGS,
         currentLang: localStorage.getItem("tahara_userLang") || ([ "ar", "fr", "es", "it" ].includes(navigator.language.split("-")[0]) ? navigator.language.split("-")[0] : "en"),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
-        status: localStorage.getItem("tahara_status") || "purity",
-        lastChanged: localStorage.getItem("tahara_last_changed") || (new Date).toISOString(),
-        history: JSON.parse(localStorage.getItem("tahara_history") || "[]"),
-        fasting: JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}'),
-        dailyLogs: JSON.parse(localStorage.getItem("tahara_logs") || "{}"),
+        madhhab: localStorage.getItem("tahara_madhhab") || "hanafi",
+        habitDays: parseInt(localStorage.getItem("tahara_habitDays")) || 6,
+        status: "purity",
+        lastChanged: (new Date).toISOString(),
+        history: [],
+        fasting: {
+            missed: 0,
+            paid: 0
+        },
+        dailyLogs: {},
         selectedDate: new Date,
-        modalOpen: false,
         avgCycleLength: 0,
-        avgHaydLength: 0
-    };
-    window.safeDownloadJSON = async (dataObj, fileName) => {
-        const jsonStr = JSON.stringify(dataObj, null, 2);
-        if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        avgHaydLength: 0,
+        vaultEnabled: localStorage.getItem("tahara_vault_enabled") === "true",
+        isAwaitingIntent: false,
+        vaultLocked: true,
+        lastActive: Date.now(),
+        restoreAudit: (() => {
             try {
-                const {Filesystem: Filesystem, Share: Share} = Capacitor.Plugins;
-                const writeResult = await Filesystem.writeFile({
-                    path: fileName,
-                    data: jsonStr,
-                    directory: "CACHE",
-                    encoding: "utf8"
-                });
-                await Share.share({
-                    title: "Tahara Data",
-                    url: writeResult.uri,
-                    dialogTitle: "Save Tahara Data"
-                });
-                return true;
-            } catch (err) {
-                console.error("Native Capacitor export failed", err);
-                return false;
+                const raw = localStorage.getItem("tahara_restore_audit");
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
             }
-        }
-        try {
-            const blob = new Blob([ jsonStr ], {
-                type: "application/json"
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.style.display = "none";
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 150);
-            return true;
-        } catch (e) {
-            console.error("Web export failed", e);
-            return false;
-        }
+        })()
     };
+    window.App = App;
+    const getRules = () => FiqhRules[App.madhhab].rules;
+    let cachedDescText = null;
     const ErrorLog = {
         logs: [],
         add(err) {
@@ -78,7 +65,241 @@ import { TaharaEngine } from "./engine.js";
         });
         return false;
     };
+    const VAULT_KEY_ALIAS = "tahara_master_key";
+    const WEBAUTHN_ID_KEY = "tahara_webauthn_id";
+    const VaultManager = {
+        async init() {
+            if (!App.vaultEnabled) {
+                App.vaultLocked = false;
+                return;
+            }
+            this.showLockScreen();
+        },
+        showLockScreen() {
+            App.vaultLocked = true;
+            const lockScreen = el("vaultLockScreen");
+            if (lockScreen) {
+                lockScreen.classList.remove("hidden");
+                el("vaultPinContainer")?.classList.add("hidden");
+            }
+        },
+        async _webAuthnRegister() {
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            const credential = await navigator.credentials.create({
+                publicKey: {
+                    challenge: challenge,
+                    rp: {
+                        name: "Tahara"
+                    },
+                    user: {
+                        id: Uint8Array.from("tahara-user", c => c.charCodeAt(0)),
+                        name: "user@tahara.local",
+                        displayName: "Tahara Owner"
+                    },
+                    pubKeyCredParams: [ {
+                        alg: -7,
+                        type: "public-key"
+                    } ],
+                    authenticatorSelection: {
+                        authenticatorAttachment: "platform",
+                        userVerification: "required"
+                    },
+                    timeout: 6e4
+                }
+            });
+            if (credential) {
+                localStorage.setItem(WEBAUTHN_ID_KEY, btoa(String.fromCharCode(...new Uint8Array(credential.rawId))));
+                return true;
+            }
+            return false;
+        },
+        async _webAuthnVerify() {
+            const storedIdBase64 = localStorage.getItem(WEBAUTHN_ID_KEY);
+            if (!storedIdBase64) return false;
+            const storedId = Uint8Array.from(atob(storedIdBase64), c => c.charCodeAt(0));
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            const credential = await navigator.credentials.get({
+                publicKey: {
+                    challenge: challenge,
+                    allowCredentials: [ {
+                        id: storedId.buffer,
+                        type: "public-key"
+                    } ],
+                    userVerification: "required"
+                }
+            });
+            return !!credential;
+        },
+        async handleUnlock() {
+            try {
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const {NativeBiometric: NativeBiometric} = Capacitor.Plugins;
+                    await NativeBiometric.verifyIdentity({
+                        reason: S("vault_unlock_btn", "Unlock App"),
+                        title: S("vault_lock_title", "Tahara Vault")
+                    });
+                } else if (window.PublicKeyCredential) {
+                    const ok = await this._webAuthnVerify();
+                    if (!ok) throw new Error("Verification failed");
+                }
+                let rawKeyBase64 = null;
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const {NativeBiometric: NativeBiometric} = Capacitor.Plugins;
+                    const credentials = await NativeBiometric.getCredentials({
+                        server: VAULT_KEY_ALIAS
+                    });
+                    rawKeyBase64 = credentials.password;
+                } else {
+                    rawKeyBase64 = localStorage.getItem(VAULT_KEY_ALIAS);
+                }
+                if (!rawKeyBase64) throw new Error("No key found");
+                const rawKey = Uint8Array.from(atob(rawKeyBase64), c => c.charCodeAt(0));
+                const key = await TaharaCrypto.importKey(rawKey);
+                TaharaDB.setVaultKey(key);
+                this.unlockUI();
+            } catch (e) {
+                console.error("Auth failed:", e);
+                if (e.message !== "User canceled" && e.name !== "NotAllowedError") {
+                    showToast("vault_auth_failed", "error", "Authentication failed");
+                }
+            }
+        },
+        unlockUI() {
+            App.vaultLocked = false;
+            App.lastActive = Date.now();
+            el("vaultLockScreen").classList.add("hidden");
+            runDataMigrations().then(() => {
+                updateStatusUI();
+                renderCalendar();
+                if (el("view-history") && !el("view-history").classList.contains("hidden")) {
+                    renderFullInsights();
+                }
+            });
+        },
+        async toggleVault(enabled) {
+            try {
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const {NativeBiometric: NativeBiometric} = Capacitor.Plugins;
+                    const availability = await NativeBiometric.isAvailable();
+                    if (!availability.isAvailable) {
+                        showToast("vault_auth_failed", "error", "Biometrics not available");
+                        el("vaultToggle").checked = false;
+                        return;
+                    }
+                    await NativeBiometric.verifyIdentity({
+                        reason: S("section_vault"),
+                        title: S("vault_toggle")
+                    });
+                } else if (window.PublicKeyCredential) {
+                    if (enabled) {
+                        const success = await this._webAuthnRegister();
+                        if (!success) throw new Error("Registration failed");
+                    } else {
+                        const success = await this._webAuthnVerify();
+                        if (!success) throw new Error("Verification failed");
+                    }
+                }
+                if (enabled) {
+                    const key = await TaharaCrypto.generateKey();
+                    const rawKey = await TaharaCrypto.exportKey(key);
+                    const rawKeyBase64 = btoa(String.fromCharCode(...rawKey));
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        const {NativeBiometric: NativeBiometric} = Capacitor.Plugins;
+                        await NativeBiometric.setCredentials({
+                            server: VAULT_KEY_ALIAS,
+                            username: "tahara_user",
+                            password: rawKeyBase64
+                        });
+                    } else {
+                        localStorage.setItem(VAULT_KEY_ALIAS, rawKeyBase64);
+                    }
+                    localStorage.setItem("tahara_vault_enabled", "true");
+                    App.vaultEnabled = true;
+                    TaharaDB.setVaultKey(key);
+                    await saveState();
+                    await saveFasting();
+                    await TaharaDB.set(STORES.LOGS, App.dailyLogs);
+                    showToast("toast_vault_enabled", "success");
+                } else {
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        const {NativeBiometric: NativeBiometric} = Capacitor.Plugins;
+                        await NativeBiometric.deleteCredentials({
+                            server: VAULT_KEY_ALIAS
+                        });
+                    }
+                    await runDataMigrations();
+                    TaharaDB.setVaultKey(null);
+                    localStorage.removeItem(VAULT_KEY_ALIAS);
+                    localStorage.removeItem(WEBAUTHN_ID_KEY);
+                    localStorage.setItem("tahara_vault_enabled", "false");
+                    App.vaultEnabled = false;
+                    await saveState();
+                    await saveFasting();
+                    await TaharaDB.set(STORES.LOGS, App.dailyLogs);
+                    showToast("toast_vault_disabled", "neutral");
+                }
+            } catch (e) {
+                console.error("Toggle Vault Error:", e);
+                el("vaultToggle").checked = !enabled;
+                if (e.name !== "NotAllowedError" && e.message !== "User canceled") {
+                    showToast("vault_auth_failed", "error");
+                }
+            }
+        },
+        async panicWipe() {
+            showConfirmModal("vault_panic_btn", "clear_confirm", "clear_data", async () => {
+                await TaharaDB.deleteDatabase();
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const {NativeBiometric: NativeBiometric} = Capacitor.Plugins;
+                    try {
+                        await NativeBiometric.deleteCredentials({
+                            server: VAULT_KEY_ALIAS
+                        });
+                    } catch (e) {}
+                }
+                localStorage.clear();
+                window.location.href = window.location.pathname;
+            });
+        }
+    };
+    const LifecycleManager = {
+        init() {
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") {
+                    this.handleForeground();
+                } else {
+                    this.handleBackground();
+                }
+            });
+            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                const {App: CapApp} = Capacitor.Plugins;
+                CapApp.addListener("appStateChange", ({isActive: isActive}) => {
+                    if (isActive) this.handleForeground(); else this.handleBackground();
+                });
+            }
+        },
+        handleBackground() {
+            App.lastActive = Date.now();
+            TaharaDB.close();
+        },
+        async handleForeground() {
+            await TaharaDB.init();
+            if (!App.vaultEnabled || App.vaultLocked) return;
+            const now = Date.now();
+            const elapsed = (now - App.lastActive) / 1e3;
+            if (App.isAwaitingIntent) {
+                App.isAwaitingIntent = false;
+                return;
+            }
+            if (elapsed > 60) {
+                VaultManager.showLockScreen();
+            }
+        }
+    };
     window.safeDownloadJSON = async (dataObj, fileName) => {
+        App.isAwaitingIntent = true;
         const jsonStr = JSON.stringify(dataObj, null, 2);
         if (window.Capacitor && window.Capacitor.isNativePlatform()) {
             try {
@@ -131,7 +352,7 @@ import { TaharaEngine } from "./engine.js";
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            }, 150);
+            }, APP_TIMINGS.DOWNLOAD_CLEANUP_MS);
             return true;
         } catch (e) {
             console.error("Web export failed", e);
@@ -143,7 +364,8 @@ import { TaharaEngine } from "./engine.js";
             app_version: el("appVersion")?.innerText || "Unknown",
             platform: navigator.userAgent,
             language: App.currentLang,
-            error_history: ErrorLog.logs
+            error_history: ErrorLog.logs,
+            restore_audit: App.restoreAudit
         };
         const fileName = `tahara-diagnostics-${(new Date).toISOString().split("T")[0]}.json`;
         const success = await window.safeDownloadJSON(diagnosticData, fileName);
@@ -156,44 +378,95 @@ import { TaharaEngine } from "./engine.js";
         const bgClass = type === "success" ? "bg-emerald-500" : type === "error" ? "bg-rose-500" : "bg-slate-800 dark:bg-slate-200";
         const textClass = type === "neutral" ? "text-white dark:text-slate-900" : "text-white";
         toast.className = `px-4 py-2 rounded-full shadow-lg text-xs font-bold tracking-wide animate-fade-in ${bgClass} ${textClass}`;
-        toast.innerText = S(messageKey, fallback);
+        toast.textContent = S(messageKey, fallback);
         container.appendChild(toast);
         setTimeout(() => {
             toast.style.opacity = "0";
             toast.style.transform = "translateY(10px)";
             toast.style.transition = "all 0.3s ease";
-            setTimeout(() => toast.remove(), 300);
-        }, 3e3);
+            setTimeout(() => toast.remove(), APP_TIMINGS.TOAST_FADE_MS);
+        }, APP_TIMINGS.TOAST_VISIBLE_MS);
     };
     let pendingImportData = null;
     const el = id => document.getElementById(id);
     let calDate = new Date;
     const TAGS = {
-        moods: [ "mood_happy", "mood_calm", "mood_tired", "mood_irritable", "mood_sad" ],
-        symptoms: [ "sym_cramps", "sym_headache", "sym_bloating", "sym_acne", "sym_nausea" ]
+        moods: [ "mood_happy", "mood_calm", "mood_irritable", "mood_sad" ],
+        fiqh: [ "sym_spotting", "col_white", "col_yellow", "col_brown", "col_red", "col_black" ],
+        wellbeing: [ "flow_light", "flow_medium", "flow_heavy", "sym_pain", "sym_fatigue", "sym_sleep" ]
     };
+    const EXCLUSIVE_GROUPS = [ [ "mood_happy", "mood_calm", "mood_irritable", "mood_sad" ], [ "col_white", "col_yellow", "col_brown", "col_red", "col_black" ], [ "flow_light", "flow_medium", "flow_heavy" ] ];
     window.announce = msg => {
         const announcerNode = el("sr-announcer");
         if (announcerNode) {
             announcerNode.innerText = "";
-            setTimeout(() => announcerNode.innerText = msg, 50);
+            setTimeout(() => announcerNode.innerText = msg, APP_TIMINGS.ANNOUNCER_UPDATE_MS);
         }
     };
     const CURRENT_SCHEMA_VERSION = 1;
-    function runDataMigrations() {
-        const hasExistingData = localStorage.getItem("tahara_history") !== null;
+    async function runDataMigrations() {
+        await TaharaDB.init();
+        const hasExistingLocalStorage = localStorage.getItem("tahara_history") !== null;
         let userVersion = parseInt(localStorage.getItem("tahara_schema_version"));
         if (isNaN(userVersion)) {
-            userVersion = hasExistingData ? 1 : CURRENT_SCHEMA_VERSION;
+            userVersion = hasExistingLocalStorage ? 1 : CURRENT_SCHEMA_VERSION;
         }
+        if (hasExistingLocalStorage) {
+            console.log("Migrating sensitive data to IndexedDB...");
+            try {
+                const history = JSON.parse(localStorage.getItem("tahara_history") || "[]");
+                const fasting = JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}');
+                const logs = JSON.parse(localStorage.getItem("tahara_logs") || "{}");
+                const status = localStorage.getItem("tahara_status") || "purity";
+                const lastChanged = localStorage.getItem("tahara_last_changed") || (new Date).toISOString();
+                await TaharaDB.set(STORES.HISTORY, Array.isArray(history) ? history : []);
+                await TaharaDB.set(STORES.FASTING, fasting && typeof fasting === "object" ? fasting : {
+                    missed: 0,
+                    paid: 0
+                });
+                await TaharaDB.set(STORES.LOGS, logs && typeof logs === "object" ? logs : {});
+                await TaharaDB.set(STORES.STATUS, {
+                    status: status,
+                    lastChanged: lastChanged
+                });
+            } catch (err) {
+                console.error("Migration parse error - some data may be lost:", err);
+            }
+            localStorage.removeItem("tahara_history");
+            localStorage.removeItem("tahara_fasting");
+            localStorage.removeItem("tahara_logs");
+            localStorage.removeItem("tahara_status");
+            localStorage.removeItem("tahara_last_changed");
+            console.log("Migration complete.");
+        }
+        App.history = await TaharaDB.get(STORES.HISTORY) || [];
+        App.fasting = await TaharaDB.get(STORES.FASTING) || {
+            missed: 0,
+            paid: 0
+        };
+        App.dailyLogs = await TaharaDB.get(STORES.LOGS) || {};
+        const statusData = await TaharaDB.get(STORES.STATUS) || {
+            status: "purity",
+            lastChanged: (new Date).toISOString()
+        };
+        App.status = statusData.status;
+        App.lastChanged = statusData.lastChanged;
         localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
     }
-    runDataMigrations();
     function S(key, fallback) {
         if (App.uiStrings[key]) return App.uiStrings[key];
         if (App.defaultStrings[key]) return App.defaultStrings[key];
         if (App.globalStrings && App.globalStrings[key]) return App.globalStrings[key];
         return fallback || "";
+    }
+    function formatImportLimit(bytes) {
+        return `${Math.round(bytes / (1024 * 1024))} MB`;
+    }
+    function updateImportLimitHint() {
+        const hint = el("importLimitHint");
+        if (!hint) return;
+        const template = S("import_limit_hint", "Max import size: %size%");
+        hint.innerText = template.replace("%size%", formatImportLimit(APP_LIMITS.MAX_BACKUP_IMPORT_BYTES));
     }
     function formatDateTime(isoString) {
         const d = new Date(isoString);
@@ -241,6 +514,18 @@ import { TaharaEngine } from "./engine.js";
         el("reminderToggle").checked = App.reminderEnabled;
         el("reminderTime").value = App.reminderTime;
         if (App.reminderEnabled) el("reminderTimeContainer").classList.remove("hidden");
+        const vaultToggle = el("vaultToggle");
+        if (vaultToggle) vaultToggle.checked = App.vaultEnabled;
+        const habitContainer = el("habitContainer");
+        const habitInput = el("habitInput");
+        if (habitContainer && habitInput) {
+            if (App.madhhab === "maliki") {
+                habitContainer.classList.remove("hidden");
+                habitInput.value = App.habitDays;
+            } else {
+                habitContainer.classList.add("hidden");
+            }
+        }
         const lastBackupStr = localStorage.getItem("tahara_last_backup");
         let needsBackup = false;
         if (!lastBackupStr && App.history.length > 0) needsBackup = true; else if (lastBackupStr && (new Date - new Date(lastBackupStr)) / 864e5 >= 30) needsBackup = true;
@@ -388,47 +673,65 @@ import { TaharaEngine } from "./engine.js";
         }
     };
     function calculateStats() {
-        const {avgCycleLengthMs: avgCycleLengthMs, avgHaydLengthMs: avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history);
+        const {avgCycleLengthMs: avgCycleLengthMs, avgHaydLengthMs: avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history, getRules(), App.habitDays);
         App.avgCycleLength = avgCycleLengthMs;
         App.avgHaydLength = avgHaydLengthMs;
         const unit = S("unit_days", "d");
         const toDays = ms => Math.round(ms / 864e5) + unit;
         const haydCount = App.history.filter(e => e.status === "hayd").length;
         if (haydCount < 2) {
-            const emptyMsg = `<span class="text-[10px] font-normal text-rose-400/70 dark:text-rose-300/60">${S("empty_averages")}</span>`;
-            if (el("avgCycleText")) el("avgCycleText").innerHTML = emptyMsg;
-            if (el("avgPurityText")) el("avgPurityText").innerHTML = emptyMsg.replace("text-rose-400/70", "text-amber-600/70").replace("dark:text-rose-300/60", "dark:text-amber-400/60");
+            const emptyAverages = S("empty_averages");
+            if (el("avgCycleText")) {
+                el("avgCycleText").textContent = emptyAverages;
+                el("avgCycleText").className = "text-[10px] font-normal text-rose-400/70 dark:text-rose-300/60";
+            }
+            if (el("avgPurityText")) {
+                el("avgPurityText").textContent = emptyAverages;
+                el("avgPurityText").className = "text-[10px] font-normal text-amber-600/70 dark:text-amber-400/60";
+            }
             if (el("nextPeriodText")) el("nextPeriodText").innerText = "--";
         } else {
             if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
             if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
             const {predStart: predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
             if (predStart && el("nextPeriodText")) {
-                el("nextPeriodText").innerText = predStart.toLocaleDateString(App.currentLang, {
-                    weekday: "short",
+                const dayMs = 864e5;
+                const rangeStart = new Date(predStart.getTime() - 2 * dayMs);
+                const rangeEnd = new Date(predStart.getTime() + 2 * dayMs);
+                const fmt = {
                     month: "short",
                     day: "numeric"
-                });
+                };
+                const rangeStr = `${rangeStart.toLocaleDateString(App.currentLang, fmt)} – ${rangeEnd.toLocaleDateString(App.currentLang, fmt)}`;
+                el("nextPeriodText").innerText = rangeStr;
+                window.announce(`${S("next_period")}: ${rangeStr}. ${S("prediction_disclaimer")}`);
             } else {
                 if (el("nextPeriodText")) el("nextPeriodText").innerText = "--";
             }
         }
     }
+    window.calculateStats = calculateStats;
     function updateContextMessage() {
-        const descText = document.querySelector("[data-i18n='status_desc']");
-        if (!descText) return;
+        if (!cachedDescText) cachedDescText = document.querySelector("[data-i18n='status_desc']");
+        if (!cachedDescText) return;
         if (App.history.length === 0) {
-            descText.innerText = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
-            descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
+            const welcomeMsg = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
+            if (cachedDescText.innerText !== welcomeMsg) {
+                cachedDescText.innerText = welcomeMsg;
+                cachedDescText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
+            }
             return;
         }
-        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date);
-        descText.innerText = S(context.ruleKey);
-        descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
-        if (context.isWarning) {
-            descText.classList.add("text-rose-600", "font-bold");
-        } else if (context.isAlert) {
-            descText.classList.add("text-amber-600", "font-bold");
+        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date, getRules(), App.habitDays);
+        const newMsg = S(context.ruleKey);
+        if (cachedDescText.innerText !== newMsg) {
+            cachedDescText.innerText = newMsg;
+            cachedDescText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
+            if (context.isWarning) {
+                cachedDescText.classList.add("text-rose-600", "font-bold");
+            } else if (context.isAlert) {
+                cachedDescText.classList.add("text-amber-600", "font-bold");
+            }
         }
     }
     window.changeMonth = delta => {
@@ -447,16 +750,42 @@ import { TaharaEngine } from "./engine.js";
         if (!grid || !monthLabel) return;
         calculateStats();
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
-        grid.innerHTML = "";
+        grid.replaceChildren();
         monthLabel.innerText = calDate.toLocaleString(App.currentLang, {
             month: "long",
             year: "numeric"
         });
-        const daysAr = [ "ح", "ن", "ث", "ر", "خ", "ج", "س" ];
-        const daysEn = [ "S", "M", "T", "W", "T", "F", "S" ];
-        const days = App.currentLang === "ar" ? daysAr : daysEn;
-        if (weekHeader) weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join("");
-        if (legendContainer) legendContainer.innerHTML = `<div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_change", "Change")}</span></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-200 dark:bg-rose-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_hayd", "Hayd")}</span></div>`;
+        const weekdaysStr = S("calendar_weekdays", "S,M,T,W,T,F,S");
+        const days = weekdaysStr.split(",");
+        if (weekHeader) {
+            weekHeader.replaceChildren();
+            const frag = document.createDocumentFragment();
+            days.forEach(d => {
+                const span = document.createElement("span");
+                span.className = "text-[11px] text-slate-500 dark:text-slate-400 font-bold";
+                span.textContent = d;
+                frag.appendChild(span);
+            });
+            weekHeader.appendChild(frag);
+        }
+        if (legendContainer) {
+            legendContainer.replaceChildren();
+            const makeLegendItem = (dotClass, label) => {
+                const item = document.createElement("div");
+                item.className = "flex items-center gap-1";
+                const dot = document.createElement("span");
+                dot.className = `w-2 h-2 rounded-full ${dotClass}`;
+                const text = document.createElement("span");
+                text.className = "text-slate-500 dark:text-slate-300 font-bold";
+                text.textContent = label;
+                item.appendChild(dot);
+                item.appendChild(text);
+                return item;
+            };
+            legendContainer.appendChild(makeLegendItem("bg-amber-200 dark:bg-amber-700", S("status_purity", "Purity")));
+            legendContainer.appendChild(makeLegendItem("bg-purple-300 dark:bg-purple-700", S("status_change", "Change")));
+            legendContainer.appendChild(makeLegendItem("bg-rose-200 dark:bg-rose-700", S("status_hayd", "Hayd")));
+        }
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
         const firstDay = new Date(year, month, 1).getDay();
@@ -466,7 +795,8 @@ import { TaharaEngine } from "./engine.js";
         todayMidnight.setHours(0, 0, 0, 0);
         const selDateKey = getIsoDate(App.selectedDate);
         const {predStart: predStart, predEnd: predEnd} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
-        for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < firstDay; i++) frag.appendChild(document.createElement("div"));
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day, 12, 0, 0);
             const checkDate = new Date(year, month, day);
@@ -480,8 +810,7 @@ import { TaharaEngine } from "./engine.js";
             let isPredicted = false;
             if (predStart && currentDayDate >= predStart && currentDayDate <= predEnd && currentDayDate > now) isPredicted = true;
             let bgClass = "", textClass = "", borderClass = "";
-            let cursorClass = isFuture ? "cursor-default opacity-40" : "cursor-pointer";
-            let clickAttr = isFuture ? "" : `data-date="${dateKey}"`;
+            const cursorClass = isFuture ? "cursor-default opacity-40" : "cursor-pointer";
             if (isPredicted) {
                 bgClass = "bg-transparent";
                 textClass = "text-slate-400 dark:text-slate-500 font-bold";
@@ -500,12 +829,18 @@ import { TaharaEngine } from "./engine.js";
             const isSelected = dateKey === selDateKey && !isFuture;
             if (isSelected) borderClass = "ring-2 ring-slate-400 dark:ring-slate-500 z-20 scale-105";
             if (isToday) borderClass = "ring-2 ring-amber-500 font-black z-30 scale-110";
-            let dot = "";
+            const dayEl = document.createElement("div");
+            dayEl.className = `relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${cursorClass} ${bgClass} ${textClass} ${borderClass}`;
+            dayEl.textContent = String(day);
+            if (!isFuture) dayEl.setAttribute("data-date", dateKey);
             if (App.dailyLogs[dateKey] && App.dailyLogs[dateKey].length > 0) {
-                dot = `<div class="absolute bottom-1 w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-400"></div>`;
+                const dot = document.createElement("div");
+                dot.className = "absolute bottom-1 w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-400";
+                dayEl.appendChild(dot);
             }
-            grid.innerHTML += `<div ${clickAttr} class="relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${cursorClass} ${bgClass} ${textClass} ${borderClass}">\n                ${day} ${dot}\n            </div>`;
+            frag.appendChild(dayEl);
         }
+        grid.appendChild(frag);
     }
     window.selectDate = dateStr => {
         App.selectedDate = new Date(dateStr);
@@ -518,8 +853,9 @@ import { TaharaEngine } from "./engine.js";
         const container = el("dailyLogContainer");
         const dateText = el("selectedDateText");
         const moodsDiv = el("moodOptions");
-        const symDiv = el("symptomOptions");
-        if (!container) return;
+        const fiqhDiv = el("fiqhOptions");
+        const wellbeingDiv = el("wellbeingOptions");
+        if (!container || !moodsDiv || !fiqhDiv || !wellbeingDiv) return;
         const dateKey = getIsoDate(App.selectedDate);
         const todayKey = getIsoDate(new Date);
         if (dateKey > todayKey) {
@@ -538,21 +874,30 @@ import { TaharaEngine } from "./engine.js";
             const baseClass = "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border";
             const activeClass = "bg-rose-500 text-white border-rose-500 shadow-sm";
             const inactiveClass = "bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/10 hover:border-rose-300";
-            return `<button data-log="${key}" class="${baseClass} ${isActive ? activeClass : inactiveClass}">${S(key)}</button>`;
+            const btn = document.createElement("button");
+            btn.setAttribute("data-log", key);
+            btn.className = `${baseClass} ${isActive ? activeClass : inactiveClass}`;
+            btn.textContent = S(key);
+            return btn;
         };
-        moodsDiv.innerHTML = TAGS.moods.map(createTag).join("");
-        symDiv.innerHTML = TAGS.symptoms.map(createTag).join("");
+        const renderTagGroup = (target, keys) => {
+            const frag = document.createDocumentFragment();
+            keys.forEach(k => frag.appendChild(createTag(k)));
+            target.replaceChildren(frag);
+        };
+        renderTagGroup(moodsDiv, TAGS.moods);
+        renderTagGroup(fiqhDiv, TAGS.fiqh);
+        renderTagGroup(wellbeingDiv, TAGS.wellbeing);
     }
-    window.toggleLog = tagKey => {
+    window.toggleLog = async tagKey => {
         const dateKey = getIsoDate(App.selectedDate);
         if (!App.dailyLogs[dateKey]) App.dailyLogs[dateKey] = [];
-        const isMood = TAGS.moods.includes(tagKey);
-        if (isMood) {
+        const group = EXCLUSIVE_GROUPS.find(g => g.includes(tagKey));
+        if (group) {
             if (App.dailyLogs[dateKey].includes(tagKey)) {
-                const idx = App.dailyLogs[dateKey].indexOf(tagKey);
-                App.dailyLogs[dateKey].splice(idx, 1);
+                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => t !== tagKey);
             } else {
-                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => !TAGS.moods.includes(t));
+                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => !group.includes(t));
                 App.dailyLogs[dateKey].push(tagKey);
             }
         } else {
@@ -560,7 +905,7 @@ import { TaharaEngine } from "./engine.js";
             if (idx > -1) App.dailyLogs[dateKey].splice(idx, 1); else App.dailyLogs[dateKey].push(tagKey);
         }
         if (App.dailyLogs[dateKey].length === 0) delete App.dailyLogs[dateKey];
-        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
+        await TaharaDB.set(STORES.LOGS, App.dailyLogs);
         renderLogUI();
         renderCalendar();
     };
@@ -570,7 +915,7 @@ import { TaharaEngine } from "./engine.js";
             const granted = await NotificationManager.requestPermission();
             if (!granted) {
                 e.target.checked = false;
-                alert(S("notif_denied", "Notification permission was denied."));
+                showToast("notif_denied", "error", "Notification permission was denied.");
                 return;
             }
             el("reminderTimeContainer").classList.remove("hidden");
@@ -589,7 +934,7 @@ import { TaharaEngine } from "./engine.js";
                 const granted = await NotificationManager.requestPermission();
                 if (!granted) {
                     e.target.checked = false;
-                    alert(S("notif_denied", "Notification permission was denied."));
+                    showToast("notif_denied", "error", "Notification permission was denied.");
                     return;
                 }
             }
@@ -607,18 +952,45 @@ import { TaharaEngine } from "./engine.js";
         const fullList = el("fullHistoryList");
         if (!fullList) return;
         if (App.history.length === 0) {
-            fullList.innerHTML = `<div class="text-center text-slate-400 text-sm py-12 italic">${S("no_history", "No history yet")}</div>`;
+            fullList.replaceChildren();
+            const empty = document.createElement("div");
+            empty.className = "text-center text-slate-400 text-sm py-12 italic";
+            empty.textContent = S("no_history", "No history yet");
+            fullList.appendChild(empty);
             return;
         }
-        fullList.innerHTML = App.history.map((entry, index) => {
+        const fragment = document.createDocumentFragment();
+        App.history.forEach((entry, index) => {
             const label = entry.status === "hayd" ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === "hayd" ? "text-rose-600 dark:text-rose-200" : "text-amber-700 dark:text-amber-100";
             const bgClass = entry.status === "hayd" ? "bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20" : "bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20";
-            return `\n            <div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group">\n                <div class="flex flex-col">\n                    <span class="text-sm font-bold ${color}">${label}</span>\n                    <span class="text-[10px] text-slate-400 font-medium">${formatDateTime(entry.time)}</span>\n                </div>\n                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all">\n                    <span class="text-lg">🗑️</span>\n                </button>\n            </div>`;
-        }).join("");
+            const row = document.createElement("div");
+            row.className = `p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group`;
+            const left = document.createElement("div");
+            left.className = "flex flex-col";
+            const status = document.createElement("span");
+            status.className = `text-sm font-bold ${color}`;
+            status.textContent = label;
+            left.appendChild(status);
+            const when = document.createElement("span");
+            when.className = "text-[10px] text-slate-400 font-medium";
+            when.textContent = formatDateTime(entry.time);
+            left.appendChild(when);
+            const delBtn = document.createElement("button");
+            delBtn.className = "w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all";
+            delBtn.setAttribute("data-delete-index", String(index));
+            const icon = document.createElement("span");
+            icon.className = "text-lg";
+            icon.textContent = "🗑️";
+            delBtn.appendChild(icon);
+            row.appendChild(left);
+            row.appendChild(delBtn);
+            fragment.appendChild(row);
+        });
+        fullList.replaceChildren(fragment);
     }
-    function deleteSpecificEntry(index) {
-        showConfirmModal("delete_title", "delete_confirm", "btn_delete", () => {
+    async function deleteSpecificEntry(index) {
+        showConfirmModal("delete_title", "delete_confirm", "btn_delete", async () => {
             App.history.splice(index, 1);
             if (index === 0) {
                 if (App.history.length > 0) {
@@ -629,19 +1001,21 @@ import { TaharaEngine } from "./engine.js";
                     App.lastChanged = (new Date).toISOString();
                 }
             }
-            saveState();
+            await saveState();
             updateStatusUI();
             renderFullInsights();
             updateLiveCounter();
             showToast("toast_entry_deleted", "neutral", "Entry removed");
         });
     }
-    function saveState() {
-        localStorage.setItem("tahara_status", App.status);
-        localStorage.setItem("tahara_history", JSON.stringify(App.history));
-        localStorage.setItem("tahara_last_changed", App.lastChanged);
+    async function saveState() {
+        await TaharaDB.set(STORES.HISTORY, App.history);
+        await TaharaDB.set(STORES.STATUS, {
+            status: App.status,
+            lastChanged: App.lastChanged
+        });
     }
-    function toggleStatus() {
+    async function toggleStatus() {
         App.status = App.status === "purity" ? "hayd" : "purity";
         App.lastChanged = (new Date).toISOString();
         App.history.unshift({
@@ -649,7 +1023,7 @@ import { TaharaEngine } from "./engine.js";
             time: App.lastChanged
         });
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
-        saveState();
+        await saveState();
         updateStatusUI();
         const statusLabel = App.status === "purity" ? S("status_purity") : S("status_hayd");
         window.announce(`${S("announce_status")} ${statusLabel}`);
@@ -665,7 +1039,7 @@ import { TaharaEngine } from "./engine.js";
                 if (!isHistoryVisible) {
                     historyTabBtn.classList.remove("text-rose-500");
                 }
-            }, 1e3);
+            }, APP_TIMINGS.HISTORY_TAB_HIGHLIGHT_MS);
         }
     }
     function updateStatusUI() {
@@ -706,8 +1080,8 @@ import { TaharaEngine } from "./engine.js";
             }
         }
     }
-    function saveFasting() {
-        localStorage.setItem("tahara_fasting", JSON.stringify(App.fasting));
+    async function saveFasting() {
+        await TaharaDB.set(STORES.FASTING, App.fasting);
         updateFastingUI();
     }
     function updateFastingUI() {
@@ -718,23 +1092,24 @@ import { TaharaEngine } from "./engine.js";
         const dot = el("debtDot");
         if (dot) remaining > 0 ? dot.classList.remove("hidden") : dot.classList.add("hidden");
     }
-    window.updateDebt = delta => {
+    window.updateDebt = async delta => {
         const newVal = App.fasting.missed + delta;
         if (newVal >= 0) {
             App.fasting.missed = newVal;
-            saveFasting();
+            await saveFasting();
             NotificationManager.scheduleFastingReminder();
         }
     };
-    window.updatePaid = delta => {
+    window.updatePaid = async delta => {
         const newVal = App.fasting.paid + delta;
         if (newVal >= 0 && newVal <= App.fasting.missed) {
             App.fasting.paid = newVal;
-            saveFasting();
+            await saveFasting();
             NotificationManager.scheduleFastingReminder();
         }
     };
     async function exportData() {
+        App.isAwaitingIntent = true;
         const data = {
             schema_version: CURRENT_SCHEMA_VERSION,
             tahara_status: App.status,
@@ -753,22 +1128,40 @@ import { TaharaEngine } from "./engine.js";
         }
     }
     function importData() {
+        App.isAwaitingIntent = true;
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "*/*";
         input.onchange = e => {
             const file = e.target.files[0];
             if (!file) return;
+            if (file.size > APP_LIMITS.MAX_BACKUP_IMPORT_BYTES) {
+                addRestoreAudit("restore_rejected_too_large", {
+                    size: file.size,
+                    max: APP_LIMITS.MAX_BACKUP_IMPORT_BYTES
+                });
+                showToast("import_too_large", "error", "Backup file is too large to import safely.");
+                pendingImportData = null;
+                return;
+            }
             const reader = new FileReader;
             reader.onload = event => {
                 try {
                     const data = JSON.parse(event.target.result);
-                    if (!data.tahara_history || !Array.isArray(data.tahara_history)) throw new Error("Missing/Invalid history");
-                    if (!data.tahara_status) throw new Error("Missing status");
-                    pendingImportData = data;
-                    showRestorePreview(data);
+                    const normalized = normalizeBackupData(data);
+                    if (!normalized) {
+                        addRestoreAudit("restore_rejected_invalid_payload", {
+                            reason: "normalize_failed"
+                        });
+                        throw new Error("Invalid backup payload");
+                    }
+                    pendingImportData = normalized;
+                    showRestorePreview(normalized);
                 } catch (err) {
-                    alert(S("import_error", "Error: Invalid backup file. The data is corrupted or unsupported."));
+                    addRestoreAudit("restore_rejected_invalid_json", {
+                        reason: err?.message || "parse_failed"
+                    });
+                    showToast("import_error", "error", "Error: Invalid backup file. The data is corrupted or unsupported.");
                     pendingImportData = null;
                 }
             };
@@ -777,81 +1170,247 @@ import { TaharaEngine } from "./engine.js";
         input.click();
     }
     window.showInfoModal = (titleKey, messageKey) => {
-        const modalHtml = `\n            <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customInfoModal" style="z-index: 99999;">\n                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>\n                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">\n                    <div class="w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">ℹ️</div>\n                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>\n                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>\n                    <button data-i18n-aria="aria_close" class="modal-close-btn w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>\n                </div>\n            </div>\n        `;
         const container = document.createElement("div");
-        container.innerHTML = modalHtml;
+        const modal = document.createElement("div");
+        modal.id = "customInfoModal";
+        modal.className = "fixed inset-0 flex items-center justify-center p-4 animate-fade-in";
+        modal.style.zIndex = "99999";
+        const backdrop = document.createElement("div");
+        backdrop.className = "absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop";
+        modal.appendChild(backdrop);
+        const card = document.createElement("div");
+        card.className = "relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center";
+        const icon = document.createElement("div");
+        icon.className = "w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg";
+        icon.textContent = "ℹ️";
+        card.appendChild(icon);
+        const title = document.createElement("h3");
+        title.className = "text-lg font-bold text-slate-700 dark:text-slate-200 mb-2";
+        title.textContent = S(titleKey);
+        card.appendChild(title);
+        const message = document.createElement("p");
+        message.className = "text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed";
+        message.textContent = S(messageKey);
+        card.appendChild(message);
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "modal-close-btn w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform";
+        closeBtn.setAttribute("data-i18n-aria", "aria_close");
+        closeBtn.textContent = S("btn_close", "Close");
+        card.appendChild(closeBtn);
+        modal.appendChild(card);
+        container.appendChild(modal);
         document.body.appendChild(container);
-        container.querySelector(".modal-backdrop").addEventListener("click", window.closeInfoModal);
-        container.querySelector(".modal-close-btn").addEventListener("click", window.closeInfoModal);
+        backdrop.addEventListener("click", window.closeInfoModal);
+        closeBtn.addEventListener("click", window.closeInfoModal);
     };
+    function addRestoreAudit(event, detail = {}) {
+        const entry = {
+            time: (new Date).toISOString(),
+            event: event,
+            detail: detail
+        };
+        App.restoreAudit.push(entry);
+        if (App.restoreAudit.length > APP_RETENTION.RESTORE_AUDIT_MAX_ENTRIES) {
+            App.restoreAudit = App.restoreAudit.slice(-APP_RETENTION.RESTORE_AUDIT_MAX_ENTRIES);
+        }
+        try {
+            localStorage.setItem("tahara_restore_audit", JSON.stringify(App.restoreAudit));
+        } catch (e) {
+            console.warn("Failed to persist restore audit", e);
+        }
+    }
     window.closeInfoModal = () => {
         const modal = document.getElementById("customInfoModal");
         if (modal) modal.parentElement.remove();
     };
-    function showConfirmModal(titleKey, messageKey, confirmBtnKey, onConfirmCallback) {
+    window.showConfirmModal = (titleKey, messageKey, confirmBtnKey, onConfirmCallback) => {
         if (el("customConfirmModal")) return;
-        const modalHtml = `\n            <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customConfirmModal" style="z-index: 99999;">\n                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>\n                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">\n                    <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">⚠️</div>\n                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>\n                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>\n                    <div class="flex gap-2">\n                        <button data-i18n-aria="aria_close" class="modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>\n                        <button class="modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95">${S(confirmBtnKey)}</button>\n                    </div>\n                </div>\n            </div>\n        `;
         const container = document.createElement("div");
-        container.innerHTML = modalHtml;
+        const modal = document.createElement("div");
+        modal.id = "customConfirmModal";
+        modal.className = "fixed inset-0 flex items-center justify-center p-4 animate-fade-in";
+        modal.style.zIndex = "99999";
+        const backdrop = document.createElement("div");
+        backdrop.className = "absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop";
+        modal.appendChild(backdrop);
+        const card = document.createElement("div");
+        card.className = "relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center";
+        const icon = document.createElement("div");
+        icon.className = "w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl";
+        icon.textContent = "⚠️";
+        card.appendChild(icon);
+        const title = document.createElement("h3");
+        title.className = "text-lg font-bold text-slate-700 dark:text-slate-200 mb-2";
+        title.textContent = S(titleKey);
+        card.appendChild(title);
+        const message = document.createElement("p");
+        message.className = "text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed";
+        message.textContent = S(messageKey);
+        card.appendChild(message);
+        const btnRow = document.createElement("div");
+        btnRow.className = "flex gap-2";
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors";
+        cancelBtn.setAttribute("data-i18n-aria", "aria_close");
+        cancelBtn.textContent = S("btn_cancel", "Cancel");
+        btnRow.appendChild(cancelBtn);
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95";
+        confirmBtn.textContent = S(confirmBtnKey);
+        btnRow.appendChild(confirmBtn);
+        card.appendChild(btnRow);
+        modal.appendChild(card);
+        container.appendChild(modal);
         document.body.appendChild(container);
-        container.querySelector(".modal-backdrop").addEventListener("click", window.closeConfirmModal);
-        container.querySelector(".modal-cancel-btn").addEventListener("click", window.closeConfirmModal);
-        container.querySelector(".modal-confirm-btn").addEventListener("click", () => {
+        backdrop.addEventListener("click", window.closeConfirmModal);
+        cancelBtn.addEventListener("click", window.closeConfirmModal);
+        confirmBtn.addEventListener("click", () => {
             window.closeConfirmModal();
             onConfirmCallback();
         });
-    }
+    };
     window.closeConfirmModal = () => {
         const modal = document.getElementById("customConfirmModal");
         if (modal) modal.parentElement.remove();
     };
-    function showRestorePreview(data) {
-        const historyCount = data.tahara_history.length;
-        const logCount = Object.keys(data.tahara_logs || {}).length;
-        const date = data.export_date ? formatDateTime(data.export_date) : S("unknown_date", "Unknown Date");
-        const incomingVersion = data.schema_version || 1;
-        const previewHtml = `\n            <div class="fixed inset-0 flex items-center justify-center p-4" id="restorePreviewContainer" style="z-index: 99999;">\n                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>\n                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30">\n                    <h2 class="text-xl font-serif italic text-rose-500 mb-2">${S("preview_restore", "Preview Restore")}</h2>\n                    <p class="text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30">\n                        ⚠️ ${S("restore_warning", "Applying this will overwrite your current device data permanently.")}\n                    </p>\n                    <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-2 mb-6 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5">\n                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">\n                            <span class="font-bold text-slate-400">${S("backup_date", "Backup Date:")}</span> \n                            <span>${date}</span>\n                        </li>\n                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">\n                            <span class="font-bold text-slate-400">${S("history_entries", "History Entries:")}</span> \n                            <span>${historyCount}</span>\n                        </li>\n                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">\n                            <span class="font-bold text-slate-400">${S("daily_logs", "Daily Logs:")}</span> \n                            <span>${logCount}</span>\n                        </li>\n                        <li class="flex justify-between pb-1">\n                            <span class="font-bold text-slate-400">${S("data_version", "Data Version:")}</span> \n                            <span>v${incomingVersion}</span>\n                        </li>\n                    </ul>\n                    <div class="flex gap-3">\n                        <button class="modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5">${S("btn_cancel", "Cancel")}</button>\n                        <button class="modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30">${S("btn_confirm_restore", "Confirm Restore")}</button>\n                    </div>\n                </div>\n            </div>\n        `;
+    window.showRestorePreview = data => {
+        if (el("restorePreviewContainer")) return;
+        const normalized = normalizeBackupData(data);
+        if (!normalized) {
+            addRestoreAudit("restore_rejected_invalid_payload", {
+                reason: "preview_normalize_failed"
+            });
+            showToast("import_error", "error", "Invalid data format");
+            pendingImportData = null;
+            return;
+        }
+        pendingImportData = normalized;
+        const historyCount = normalized.tahara_history.length;
+        const logCount = Object.keys(normalized.tahara_logs || {}).length;
+        const date = normalized.export_date ? formatDateTime(normalized.export_date) : S("unknown_date", "Unknown Date");
+        const incomingVersion = normalized.schema_version || 1;
         const container = document.createElement("div");
-        container.innerHTML = previewHtml;
+        const modal = document.createElement("div");
+        modal.id = "restorePreviewContainer";
+        modal.className = "fixed inset-0 flex items-center justify-center p-4";
+        modal.style.zIndex = "99999";
+        const backdrop = document.createElement("div");
+        backdrop.className = "absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop";
+        modal.appendChild(backdrop);
+        const card = document.createElement("div");
+        card.className = "relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30";
+        const title = document.createElement("h2");
+        title.className = "text-xl font-serif italic text-rose-500 mb-2";
+        title.textContent = S("preview_restore", "Preview Restore");
+        card.appendChild(title);
+        const warning = document.createElement("p");
+        warning.className = "text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30";
+        warning.textContent = `⚠️ ${S("restore_warning", "Applying this will overwrite your current device data permanently.")}`;
+        card.appendChild(warning);
+        const statsList = document.createElement("ul");
+        statsList.className = "text-sm text-slate-600 dark:text-slate-300 space-y-2 mb-6 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5";
+        const makeStatRow = (label, value, isLast = false) => {
+            const row = document.createElement("li");
+            row.className = isLast ? "flex justify-between pb-1" : "flex justify-between border-b border-slate-200 dark:border-white/10 pb-1";
+            const left = document.createElement("span");
+            left.className = "font-bold text-slate-400";
+            left.textContent = label;
+            const right = document.createElement("span");
+            right.textContent = value;
+            row.appendChild(left);
+            row.appendChild(right);
+            return row;
+        };
+        statsList.appendChild(makeStatRow(S("backup_date", "Backup Date:"), date));
+        statsList.appendChild(makeStatRow(S("history_entries", "History Entries:"), String(historyCount)));
+        statsList.appendChild(makeStatRow(S("daily_logs", "Daily Logs:"), String(logCount)));
+        statsList.appendChild(makeStatRow(S("data_version", "Data Version:"), `v${incomingVersion}`, true));
+        card.appendChild(statsList);
+        const btnRow = document.createElement("div");
+        btnRow.className = "flex gap-3";
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5";
+        cancelBtn.textContent = S("btn_cancel", "Cancel");
+        btnRow.appendChild(cancelBtn);
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30";
+        confirmBtn.textContent = S("btn_confirm_restore", "Confirm Restore");
+        btnRow.appendChild(confirmBtn);
+        card.appendChild(btnRow);
+        modal.appendChild(card);
+        container.appendChild(modal);
         document.body.appendChild(container);
-        container.querySelector(".modal-backdrop").addEventListener("click", window.cancelRestore);
-        container.querySelector(".modal-cancel-btn").addEventListener("click", window.cancelRestore);
-        container.querySelector(".modal-confirm-btn").addEventListener("click", window.confirmRestore);
-    }
+        backdrop.addEventListener("click", window.cancelRestore);
+        cancelBtn.addEventListener("click", window.cancelRestore);
+        confirmBtn.addEventListener("click", window.confirmRestore);
+    };
     window.cancelRestore = () => {
         pendingImportData = null;
         const container = document.getElementById("restorePreviewContainer");
         if (container) container.remove();
     };
-    window.confirmRestore = () => {
-        if (!pendingImportData) return;
-        const d = pendingImportData;
-        const isValidStatus = [ "purity", "hayd" ].includes(d.tahara_status);
-        const hasHistory = Array.isArray(d.tahara_history);
-        if (!isValidStatus || !hasHistory) {
+    window.confirmRestore = async () => {
+        console.log("Confirming restore...");
+        window.restoreComplete = false;
+        if (!pendingImportData) {
+            console.error("No pending import data");
+            return;
+        }
+        const d = normalizeBackupData(pendingImportData);
+        if (!d) {
+            addRestoreAudit("restore_rejected_invalid_payload", {
+                reason: "confirm_normalize_failed"
+            });
+            console.error("Invalid data format", d);
             showToast("import_error", "error", "Invalid data format");
             window.cancelRestore();
             return;
         }
-        App.status = pendingImportData.tahara_status;
-        App.lastChanged = pendingImportData.tahara_last_changed;
-        App.history = pendingImportData.tahara_history;
-        App.fasting = pendingImportData.tahara_fasting || {
-            missed: 0,
-            paid: 0
-        };
-        App.dailyLogs = pendingImportData.tahara_logs || {};
-        localStorage.setItem("tahara_schema_version", (pendingImportData.schema_version || 1).toString());
-        saveState();
-        saveFasting();
-        NotificationManager.scheduleFastingReminder();
-        localStorage.setItem("tahara_logs", JSON.stringify(App.dailyLogs));
-        window.cancelRestore();
-        location.reload();
+        try {
+            console.log("Writing to IndexedDB...");
+            await TaharaDB.set(STORES.HISTORY, d.tahara_history);
+            await TaharaDB.set(STORES.FASTING, d.tahara_fasting || {
+                missed: 0,
+                paid: 0
+            });
+            await TaharaDB.set(STORES.LOGS, d.tahara_logs || {});
+            await TaharaDB.set(STORES.STATUS, {
+                status: d.tahara_status,
+                lastChanged: d.tahara_last_changed
+            });
+            await new Promise(r => setTimeout(r, APP_TIMINGS.RESTORE_DB_SETTLE_MS));
+            window.cancelRestore();
+            console.log("Reloading data into App state...");
+            await runDataMigrations();
+            const statusData = await TaharaDB.get(STORES.STATUS);
+            if (statusData) {
+                App.status = statusData.status;
+                App.lastChanged = statusData.lastChanged;
+            }
+            updateStatusUI();
+            renderCalendar();
+            renderFullInsights();
+            updateSettingsUI();
+            updateLiveCounter();
+            addRestoreAudit("restore_applied", {
+                history: d.tahara_history.length,
+                logs: Object.keys(d.tahara_logs || {}).length
+            });
+            showToast("toast_backup_success", "success", "Data restored successfully");
+            console.log("Restore complete. Reloading for clean state...");
+            setTimeout(() => location.reload(), APP_TIMINGS.RESTORE_RELOAD_MS);
+        } catch (err) {
+            addRestoreAudit("restore_failed", {
+                reason: err?.message || "unknown"
+            });
+            console.error("Restore failed:", err);
+            showToast("import_error", "error", "Failed to restore database");
+            window.restoreComplete = true;
+        }
     };
     function deleteLastEntry() {
         if (App.history.length === 0) return;
-        showConfirmModal("delete_title", "delete_confirm", "btn_delete", () => {
+        showConfirmModal("delete_title", "delete_confirm", "btn_delete", async () => {
             App.history.shift();
             if (App.history.length > 0) {
                 App.status = App.history[0].status;
@@ -860,7 +1419,7 @@ import { TaharaEngine } from "./engine.js";
                 App.status = "purity";
                 App.lastChanged = (new Date).toISOString();
             }
-            saveState();
+            await saveState();
             updateStatusUI();
             renderFullInsights();
             showToast("toast_entry_deleted", "neutral", "Entry removed");
@@ -868,8 +1427,9 @@ import { TaharaEngine } from "./engine.js";
         });
     }
     function clearAllData() {
-        showConfirmModal("clear_title", "clear_confirm", "clear_data", () => {
+        showConfirmModal("clear_title", "clear_confirm", "clear_data", async () => {
             localStorage.clear();
+            await TaharaDB.clearAll();
             App.history = [];
             App.fasting = {
                 missed: 0,
@@ -881,8 +1441,8 @@ import { TaharaEngine } from "./engine.js";
             localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
             localStorage.setItem("tahara_userLang", App.currentLang);
             localStorage.setItem("tahara_darkMode", App.isDark);
-            saveState();
-            saveFasting();
+            await saveState();
+            await saveFasting();
             updateStatusUI();
             renderFullInsights();
             updateSettingsUI();
@@ -921,7 +1481,26 @@ import { TaharaEngine } from "./engine.js";
         if (platform === "ios") {
             iosText.classList.remove("hidden");
             const rawText = S("install_ios_desc", "Tap Share and Add to Home Screen");
-            iosText.innerHTML = rawText.replace("%share_icon%", '<span class="text-blue-500 text-base">⎋</span>').replace("%plus_icon%", '<span class="text-slate-700 dark:text-slate-300 font-bold text-base">⊞</span>');
+            iosText.replaceChildren();
+            const parts = rawText.split(/(%share_icon%|%plus_icon%)/g);
+            for (const part of parts) {
+                if (!part) continue;
+                if (part === "%share_icon%") {
+                    const shareIcon = document.createElement("span");
+                    shareIcon.className = "text-blue-500 text-base";
+                    shareIcon.textContent = "⎋";
+                    iosText.appendChild(shareIcon);
+                    continue;
+                }
+                if (part === "%plus_icon%") {
+                    const plusIcon = document.createElement("span");
+                    plusIcon.className = "text-slate-700 dark:text-slate-300 font-bold text-base";
+                    plusIcon.textContent = "⊞";
+                    iosText.appendChild(plusIcon);
+                    continue;
+                }
+                iosText.appendChild(document.createTextNode(part));
+            }
         } else {
             androidBtn.classList.remove("hidden");
             androidBtn.onclick = async () => {
@@ -934,12 +1513,12 @@ import { TaharaEngine } from "./engine.js";
             };
         }
         banner.classList.remove("hidden");
-        setTimeout(() => banner.classList.remove("translate-y-20"), 100);
+        setTimeout(() => banner.classList.remove("translate-y-20"), APP_TIMINGS.INSTALL_BANNER_ANIMATE_MS);
     }
     window.dismissInstall = () => {
         const banner = el("installBanner");
         banner.classList.add("translate-y-20");
-        setTimeout(() => banner.classList.add("hidden"), 500);
+        setTimeout(() => banner.classList.add("hidden"), APP_TIMINGS.INSTALL_BANNER_HIDE_MS);
         localStorage.setItem("tahara_install_dismissed", (new Date).toISOString());
     };
     async function checkVersion() {
@@ -997,7 +1576,7 @@ import { TaharaEngine } from "./engine.js";
         const modal = el("onboardingModal");
         if (modal) {
             modal.classList.remove("hidden");
-            setTimeout(() => modal.classList.remove("opacity-0"), 10);
+            setTimeout(() => modal.classList.remove("opacity-0"), APP_TIMINGS.ONBOARDING_FADE_IN_DELAY_MS);
         }
     };
     window.nextOnboardingStep = () => {
@@ -1013,7 +1592,7 @@ import { TaharaEngine } from "./engine.js";
         const modal = el("onboardingModal");
         if (modal) {
             modal.classList.add("opacity-0");
-            setTimeout(() => modal.classList.add("hidden"), 500);
+            setTimeout(() => modal.classList.add("hidden"), APP_TIMINGS.ONBOARDING_HIDE_MS);
         }
     };
     function updateOnboardingUI() {
@@ -1043,6 +1622,9 @@ import { TaharaEngine } from "./engine.js";
         try {
             const res = await fetch("strings.json");
             const raw = await res.json();
+            if (!raw || typeof raw !== "object" || !raw.en || typeof raw.en !== "object") {
+                throw new Error("Invalid strings.json payload");
+            }
             App.globalStrings = raw["default"] || {};
             const urlParams = new URLSearchParams(window.location.search);
             const urlLang = urlParams.get("lang");
@@ -1050,15 +1632,21 @@ import { TaharaEngine } from "./engine.js";
                 App.currentLang = urlLang;
                 localStorage.setItem("tahara_userLang", urlLang);
             }
-            App.uiStrings = raw[App.currentLang] || raw["en"];
+            App.uiStrings = raw[App.currentLang] && typeof raw[App.currentLang] === "object" ? raw[App.currentLang] : raw["en"];
             App.defaultStrings = raw["en"];
         } catch (e) {
             console.error("Failed to load strings", e);
+            App.globalStrings = {};
+            App.uiStrings = BUILTIN_FALLBACK_STRINGS;
+            App.defaultStrings = BUILTIN_FALLBACK_STRINGS;
         } finally {
             requestAnimationFrame(() => {
                 document.documentElement.style.opacity = "1";
             });
         }
+        await runDataMigrations();
+        await VaultManager.init();
+        LifecycleManager.init();
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
         document.documentElement.lang = App.currentLang;
         document.body.classList.toggle("dark", App.isDark);
@@ -1068,12 +1656,17 @@ import { TaharaEngine } from "./engine.js";
         const translateUI = () => {
             document.querySelectorAll("[data-i18n]").forEach(node => {
                 const key = node.getAttribute("data-i18n");
-                if (S(key)) node.innerText = S(key);
+                const translation = S(key);
+                if (translation && node.innerText !== translation) {
+                    node.innerText = translation;
+                }
             });
             document.querySelectorAll("[data-i18n-aria]").forEach(node => {
                 const key = node.getAttribute("data-i18n-aria");
-                if (S(key)) node.setAttribute("aria-label", S(key));
+                const translation = S(key);
+                if (translation) node.setAttribute("aria-label", translation);
             });
+            updateImportLimitHint();
         };
         translateUI();
         initServiceWorker();
@@ -1131,7 +1724,8 @@ import { TaharaEngine } from "./engine.js";
             if (btn) toggleLog(btn.getAttribute("data-log"));
         };
         if (el("moodOptions")) el("moodOptions").addEventListener("click", handleLogClick);
-        if (el("symptomOptions")) el("symptomOptions").addEventListener("click", handleLogClick);
+        if (el("fiqhOptions")) el("fiqhOptions").addEventListener("click", handleLogClick);
+        if (el("wellbeingOptions")) el("wellbeingOptions").addEventListener("click", handleLogClick);
         if (langSel) langSel.onchange = e => {
             const newLang = e.target.value;
             localStorage.setItem("tahara_userLang", newLang);
@@ -1148,6 +1742,35 @@ import { TaharaEngine } from "./engine.js";
             if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
             if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
             if (el("settingsDiagnosticBtn")) el("settingsDiagnosticBtn").onclick = exportDiagnostics;
+            const vaultToggle = el("vaultToggle");
+            if (vaultToggle) vaultToggle.onchange = e => VaultManager.toggleVault(e.target.checked);
+            const vaultUnlockBtn = el("vaultUnlockBtn");
+            if (vaultUnlockBtn) vaultUnlockBtn.onclick = () => VaultManager.handleUnlock();
+            const vaultPanicBtn = el("vaultPanicBtn");
+            if (vaultPanicBtn) vaultPanicBtn.onclick = () => VaultManager.panicWipe();
+            const madhhabSelect = el("madhhabSelect");
+            if (madhhabSelect) {
+                madhhabSelect.value = App.madhhab;
+                madhhabSelect.onchange = e => {
+                    App.madhhab = e.target.value;
+                    localStorage.setItem("tahara_madhhab", App.madhhab);
+                    updateSettingsUI();
+                    updateStatusUI();
+                    calculateStats();
+                    renderCalendar();
+                    showToast("toast_status_saved", "success", "Rules updated");
+                };
+            }
+            const habitInput = el("habitInput");
+            if (habitInput) {
+                habitInput.onchange = e => {
+                    App.habitDays = parseInt(e.target.value) || 6;
+                    localStorage.setItem("tahara_habitDays", App.habitDays);
+                    calculateStats();
+                    updateStatusUI();
+                    showToast("toast_status_saved", "success", "Habit updated");
+                };
+            }
             const contactBtn = el("contactBtn");
             if (contactBtn) {
                 const mailtoUrl = `mailto:${S("contact_email")}`;
@@ -1171,13 +1794,13 @@ import { TaharaEngine } from "./engine.js";
             setInterval(() => {
                 updateLiveCounter();
                 NotificationManager.checkWebFallback();
-            }, 1e3);
+            }, APP_TIMINGS.LIVE_COUNTER_INTERVAL_MS);
             await NotificationManager.init();
             initNativeFeatures();
             updateSEO();
             checkVersion();
-            setTimeout(checkInstall, 3e3);
-        }, 50);
+            setTimeout(checkInstall, APP_TIMINGS.INSTALL_PROMPT_DELAY_MS);
+        }, APP_TIMINGS.INIT_DEFERRED_MS);
     }
     window.addEventListener("load", init);
     let userApprovedRefresh = false;
@@ -1210,7 +1833,22 @@ import { TaharaEngine } from "./engine.js";
         const toast = document.createElement("div");
         toast.id = "update-toast";
         toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-white dark:bg-[#2d2426] text-slate-700 dark:text-rose-100 border border-slate-200 dark:border-white/10 animate-fade-in";
-        toast.innerHTML = `\n            <div class="flex flex-col">\n                <span class="text-[10px] uppercase tracking-widest opacity-70">${S("app_title", "Tahara")}</span>\n                <span class="text-xs font-bold">${S("update_available", "Update ready!")}</span>\n            </div>\n            <button id="execRefresh" class="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all">\n                ${S("btn_refresh", "REFRESH")}\n            </button>\n        `;
+        const content = document.createElement("div");
+        content.className = "flex flex-col";
+        const appName = document.createElement("span");
+        appName.className = "text-[10px] uppercase tracking-widest opacity-70";
+        appName.textContent = S("app_title", "Tahara");
+        const updateLabel = document.createElement("span");
+        updateLabel.className = "text-xs font-bold";
+        updateLabel.textContent = S("update_available", "Update ready!");
+        content.appendChild(appName);
+        content.appendChild(updateLabel);
+        toast.appendChild(content);
+        const refreshBtn = document.createElement("button");
+        refreshBtn.id = "execRefresh";
+        refreshBtn.className = "bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all";
+        refreshBtn.textContent = S("btn_refresh", "REFRESH");
+        toast.appendChild(refreshBtn);
         container.appendChild(toast);
         const btn = el("execRefresh");
         btn.onclick = e => {
@@ -1221,21 +1859,10 @@ import { TaharaEngine } from "./engine.js";
                 worker.postMessage({
                     type: "SKIP_WAITING"
                 });
-                setTimeout(() => window.location.reload(), 1e3);
+                setTimeout(() => window.location.reload(), APP_TIMINGS.SW_RELOAD_FALLBACK_MS);
             } else {
                 window.location.reload();
             }
         };
     }
-    window.activateUpdate = () => {
-        navigator.serviceWorker.getRegistration().then(reg => {
-            if (reg && reg.waiting) {
-                reg.waiting.postMessage({
-                    type: "SKIP_WAITING"
-                });
-            } else {
-                window.location.reload();
-            }
-        });
-    };
 })();

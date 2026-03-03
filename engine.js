@@ -1,10 +1,19 @@
+/**
+ * Tahara Fiqh Engine
+ * A stateless calculator that processes history and rule schemas.
+ * AC 2: Stateless Engine - contains zero hardcoded madhhab references or duration values.
+ */
+
 export const TaharaEngine = {
     /**
      * Calculates averages from history. Pure function.
+     * Truncates invalid entries based on maxHaydMs from rules.
      * @param {Array} history - Array of {status, time} objects sorted newest first
+     * @param {Object} rules - Rule schema object
+     * @param {number} habitDays - User's menstrual habit in days (for Maliki logic)
      * @returns {Object} { avgCycleLengthMs, avgHaydLengthMs }
      */
-    calculateAverages: (history) => {
+    calculateAverages: (history, rules = null, habitDays = 0) => {
         if (!history || history.length < 2) return {avgCycleLengthMs: 0, avgHaydLengthMs: 0};
 
         const haydStarts = history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
@@ -18,10 +27,24 @@ export const TaharaEngine = {
             avgCycleLengthMs = totalCycleMs / (haydStarts.length - 1);
         }
 
+        // Determine effective max hayd for truncation
+        let effectiveMaxMs = rules?.maxHaydMs || (15 * 24 * 60 * 60 * 1000);
+        if (habitDays > 0 && rules?.dynamicMaxHayd) {
+            // Maliki: Habit + 3 days, max 15
+            effectiveMaxMs = Math.min(15 * 24 * 60 * 60 * 1000, (habitDays + 3) * 24 * 60 * 60 * 1000);
+        }
+
         let totalHaydMs = 0, haydCount = 0;
         for (let i = 0; i < history.length - 1; i++) {
             if (history[i + 1].status === 'hayd' && history[i].status === 'purity') {
-                totalHaydMs += (new Date(history[i].time) - new Date(history[i + 1].time));
+                let duration = (new Date(history[i].time) - new Date(history[i + 1].time));
+                
+                // Truncate invalid history entries based on rules
+                if (duration > effectiveMaxMs) {
+                    duration = effectiveMaxMs;
+                }
+                
+                totalHaydMs += duration;
                 haydCount++;
             }
         }
@@ -35,14 +58,21 @@ export const TaharaEngine = {
      * @param {string} status - 'purity' or 'hayd'
      * @param {Date|string} lastChanged - Time of last state change
      * @param {Date} now - Current time
+     * @param {Object} rules - Rule schema object
+     * @param {number} habitDays - User's menstrual habit in days (for Maliki logic)
      * @returns {Object} { ruleKey, isWarning, isAlert, days }
      */
-    getFiqhContext: (status, lastChanged, now) => {
+    getFiqhContext: (status, lastChanged, now, rules = null, habitDays = 0) => {
         const lastDate = new Date(lastChanged);
+        
+        // Exact millisecond difference for rule durations
+        const msDiff = now.getTime() - lastDate.getTime();
+        
+        // Calendar day difference for Day 0 logic
         const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
         const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-
         const days = Math.floor((utc1 - utc2) / (1000 * 60 * 60 * 24));
+        
         const hour = now.getHours();
 
         let ruleKey;
@@ -59,13 +89,17 @@ export const TaharaEngine = {
                 ruleKey = "msg_purity_general";
             }
         } else {
-            if (days >= 15) {
-                ruleKey = "msg_hayd_warning_shafi";
+            // Determine effective max hayd
+            let effectiveMaxMs = rules?.maxHaydMs || (15 * 24 * 60 * 60 * 1000);
+            if (habitDays > 0 && rules?.dynamicMaxHayd) {
+                // Maliki: Habit + 3 days (Istizhar), absolute max 15
+                effectiveMaxMs = Math.min(15 * 24 * 60 * 60 * 1000, (habitDays + 3) * 24 * 60 * 60 * 1000);
+            }
+
+            if (msDiff >= effectiveMaxMs) {
+                ruleKey = rules?.warningKey || "msg_hayd_generic";
                 isWarning = true;
-            } else if (days >= 10) {
-                ruleKey = "msg_hayd_warning_hanafi";
-                isWarning = true;
-            } else if (days <= 3) {
+            } else if (rules && rules.minHaydMs > 0 && msDiff <= rules.minHaydMs) {
                 ruleKey = "msg_hayd_early";
             } else {
                 ruleKey = "msg_hayd_generic";
@@ -77,6 +111,10 @@ export const TaharaEngine = {
 
     /**
      * Predicts next cycle dates. Pure function.
+     * @param {Array} history 
+     * @param {number} avgCycleLengthMs 
+     * @param {number} avgHaydLengthMs 
+     * @returns {Object} { predStart, predEnd }
      */
     predictNextCycle: (history, avgCycleLengthMs, avgHaydLengthMs) => {
         if (avgCycleLengthMs <= 0 || !history || history.length === 0) {
