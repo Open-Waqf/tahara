@@ -146,16 +146,17 @@ test.describe('Tahara E2E UX Paths', () => {
     });
 
     test('5. Settings: Language Switch updates layout to RTL and reloads', async ({page}) => {
-        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.addInitScript(() => {
+            localStorage.setItem('tahara_onboarded', 'true');
+            localStorage.setItem('tahara_userLang', 'en');
+        });
         await page.goto('/');
 
         const langSelect = page.locator('#langSelect');
 
         // Select Arabic
-        await Promise.all([
-            page.waitForNavigation({waitUntil: 'load'}),
-            langSelect.selectOption('ar'),
-        ]);
+        await langSelect.selectOption('ar');
+        await page.waitForURL(/(?:\?|&)lang=ar(?:&|$)/, {waitUntil: 'load'});
         await expect(page).toHaveURL(/(?:\?|&)lang=ar(?:&|$)/);
         await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
         await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
@@ -567,14 +568,15 @@ test.describe('Tahara E2E UX Paths', () => {
     });
 
     test('20. Localization: RTL mirroring for Arabic', async ({page}) => {
-        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.addInitScript(() => {
+            localStorage.setItem('tahara_onboarded', 'true');
+            localStorage.setItem('tahara_userLang', 'en');
+        });
         await page.goto('/');
         
         const langSelect = page.locator('#langSelect');
-        await Promise.all([
-            page.waitForNavigation({waitUntil: 'load'}),
-            langSelect.selectOption('ar'),
-        ]);
+        await langSelect.selectOption('ar');
+        await page.waitForURL(/(?:\?|&)lang=ar(?:&|$)/, {waitUntil: 'load'});
         await expect(page).toHaveURL(/(?:\?|&)lang=ar(?:&|$)/);
 
         // Check HTML attributes
@@ -863,5 +865,41 @@ test.describe('Tahara E2E UX Paths', () => {
 
         await page.locator('button[data-tab="calendar"]').click();
         await expect(page.locator('#moodOptions button').first()).not.toHaveText('');
+    });
+
+    test('33. UI Sync: rapid status toggles remain consistent in UI and storage', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.waitForFunction(() => window.App && window.App.status === 'purity');
+
+        const mainBtn = page.locator('#mainActionBtn');
+        await expect(mainBtn).toBeVisible();
+
+        await page.evaluate(() => {
+            const btn = document.getElementById('mainActionBtn');
+            for (let i = 0; i < 7; i++) btn.click();
+        });
+
+        await page.waitForFunction(() => window.App && window.App.pendingStatusOps === 0, null, {timeout: 10000});
+        await expect(mainBtn).toBeVisible({timeout: 10000});
+
+        const runtimeState = await page.evaluate(() => ({
+            status: window.App.status,
+            historyLen: window.App.history.length,
+            firstStatus: window.App.history[0]?.status
+        }));
+        expect(runtimeState.historyLen).toBeGreaterThan(0);
+        expect(runtimeState.firstStatus).toBe(runtimeState.status);
+        const parityExpectedStatus = runtimeState.historyLen % 2 === 1 ? 'hayd' : 'purity';
+        expect(runtimeState.status).toBe(parityExpectedStatus);
+
+        const dbStatus = await getIndexedDBData(page, 'status');
+        const dbHistory = await getIndexedDBData(page, 'history');
+        expect(dbStatus.status).toBe(runtimeState.status);
+        expect(dbHistory.length).toBe(runtimeState.historyLen);
+        expect(dbHistory[0].status).toBe(runtimeState.firstStatus);
+
+        const uiStatus = await page.locator('#current-state-text').innerText();
+        expect(uiStatus).toContain(runtimeState.status === 'hayd' ? 'Hayd' : 'Purity');
     });
 });

@@ -46,11 +46,18 @@ export const TaharaEngine = {
         const haydStarts = cleanHistory.filter(e => e.status === 'hayd');
         let avgCycleLengthMs = 0;
         if (haydStarts.length >= 2) {
+            const minTuhrMs = rules?.minTuhrMs || 0;
             let totalCycleMs = 0;
+            let validCycleCount = 0;
             for (let i = 0; i < haydStarts.length - 1; i++) {
-                totalCycleMs += (haydStarts[i].timeMs - haydStarts[i + 1].timeMs);
+                const cycleMs = haydStarts[i].timeMs - haydStarts[i + 1].timeMs;
+                // Ignore overlap/istihadah-like cycle fragments shorter than minimum tuhr.
+                if (cycleMs >= minTuhrMs) {
+                    totalCycleMs += cycleMs;
+                    validCycleCount++;
+                }
             }
-            avgCycleLengthMs = totalCycleMs / (haydStarts.length - 1);
+            avgCycleLengthMs = validCycleCount > 0 ? totalCycleMs / validCycleCount : 0;
         }
 
         // 4. Hayd Duration: Hayd Start to Purity Start (next entry in cleanHistory is purity)
@@ -85,14 +92,16 @@ export const TaharaEngine = {
      */
     getFiqhContext: (status, lastChanged, now, rules = null, habitDays = 0) => {
         const lastDate = new Date(lastChanged);
+        const hasValidLastDate = Number.isFinite(lastDate.getTime());
+        const safeLastDate = hasValidLastDate ? lastDate : now;
         
         // Exact millisecond difference for rule durations
-        const msDiff = now.getTime() - lastDate.getTime();
+        const msDiff = Math.max(0, now.getTime() - safeLastDate.getTime());
         
         // Calendar day difference for Day 0 logic
         const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-        const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-        const days = Math.floor((utc1 - utc2) / (1000 * 60 * 60 * 24));
+        const utc2 = Date.UTC(safeLastDate.getFullYear(), safeLastDate.getMonth(), safeLastDate.getDate());
+        const days = Math.max(0, Math.floor((utc1 - utc2) / (1000 * 60 * 60 * 24)));
         
         const hour = now.getHours();
 

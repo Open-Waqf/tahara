@@ -1,5 +1,5 @@
 import {TaharaEngine} from './engine.js';
-import {TaharaDB, STORES} from './db.js';
+import {TaharaDB, STORES, migrateLegacyLocalStorageToIndexedDB} from './db.js';
 import {TaharaCrypto} from './crypto.js';
 import {FiqhRules} from './rules.js';
 import {normalizeBackupData} from './backup.js';
@@ -31,6 +31,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         isAwaitingIntent: false,
         vaultLocked: true,
         lastActive: Date.now(),
+        pendingStatusOps: 0,
         restoreAudit: (() => {
             try {
                 const raw = localStorage.getItem("tahara_restore_audit");
@@ -144,8 +145,8 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 if (window.Capacitor && window.Capacitor.isNativePlatform()) {
                     const { NativeBiometric } = Capacitor.Plugins;
                     await NativeBiometric.verifyIdentity({
-                        reason: S("vault_unlock_btn", "Unlock App"),
-                        title: S("vault_lock_title", "Tahara Vault")
+                        reason: S("vault_unlock_btn"),
+                        title: S("vault_lock_title")
                     });
                 } else if (window.PublicKeyCredential) {
                     const ok = await this._webAuthnVerify();
@@ -175,7 +176,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             } catch (e) {
                 console.error("Auth failed:", e);
                 if (e.message !== "User canceled" && e.name !== "NotAllowedError") {
-                    showToast("vault_auth_failed", "error", "Authentication failed");
+                    showToast("vault_auth_failed", "error");
                 }
             }
         },
@@ -201,7 +202,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                     const { NativeBiometric } = Capacitor.Plugins;
                     const availability = await NativeBiometric.isAvailable();
                     if (!availability.isAvailable) {
-                        showToast("vault_auth_failed", "error", "Biometrics not available");
+                        showToast("vault_biometrics_unavailable", "error");
                         el("vaultToggle").checked = false;
                         return;
                     }
@@ -363,9 +364,9 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
 
                 // Trigger the Native Share Sheet so the user can save to Google Drive or Local Files
                 await Share.share({
-                    title: 'Tahara Export',
+                    title: S("export_share_title"),
                     url: writeResult.uri,
-                    dialogTitle: 'Save Tahara Data'
+                    dialogTitle: S("export_share_dialog_title")
                 });
                 return true;
             } catch (err) {
@@ -413,7 +414,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
 
     window.exportDiagnostics = async () => {
         const diagnosticData = {
-            app_version: el("appVersion")?.innerText || "Unknown",
+            app_version: el("appVersion")?.innerText || S("unknown_value"),
             platform: navigator.userAgent,
             language: App.currentLang,
             error_history: ErrorLog.logs,
@@ -421,13 +422,13 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         };
         const fileName = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.json`;
         const success = await window.safeDownloadJSON(diagnosticData, fileName);
-        if (success) showToast("toast_diagnostic_exported", "neutral", "Diagnostic log saved");
+        if (success) showToast("toast_diagnostic_exported", "neutral");
     };
 
     // ==========================================
     // MICRO-INTERACTIONS & TOASTS (B6)
     // ==========================================
-    window.showToast = (messageKey, type = 'success', fallback = "Success") => {
+    window.showToast = (messageKey, type = 'success', fallback = "") => {
         const container = el("toast-container");
         if (!container) return;
 
@@ -478,66 +479,16 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
     // DATA SCHEMA & MIGRATIONS (A2)
     // ==========================================
     const CURRENT_SCHEMA_VERSION = 1;
-    const MIGRATION_VERIFIED_KEY = "tahara_migration_verified";
 
     async function runDataMigrations() {
         // Initialize TaharaDB first
         await TaharaDB.init();
-
-        const hasExistingLocalStorage = localStorage.getItem("tahara_history") !== null;
-        let userVersion = parseInt(localStorage.getItem("tahara_schema_version"));
-
-        if (isNaN(userVersion)) {
-            userVersion = hasExistingLocalStorage ? 1 : CURRENT_SCHEMA_VERSION;
-        }
-
-        // --- MIGRATION: localStorage -> IndexedDB ---
-        if (hasExistingLocalStorage) {
-            console.log("Migrating sensitive data to IndexedDB...");
-            let migrationVerified = false;
-
-            try {
-                const history = JSON.parse(localStorage.getItem("tahara_history") || "[]");
-                const fasting = JSON.parse(localStorage.getItem("tahara_fasting") || '{"missed":0, "paid":0}');
-                const logs = JSON.parse(localStorage.getItem("tahara_logs") || "{}");
-                const status = localStorage.getItem("tahara_status") || "purity";
-                const lastChanged = localStorage.getItem("tahara_last_changed") || new Date().toISOString();
-
-                await TaharaDB.set(STORES.HISTORY, Array.isArray(history) ? history : []);
-                await TaharaDB.set(STORES.FASTING, (fasting && typeof fasting === 'object') ? fasting : {"missed": 0, "paid": 0});
-                await TaharaDB.set(STORES.LOGS, (logs && typeof logs === 'object') ? logs : {});
-                await TaharaDB.set(STORES.STATUS, {status, lastChanged});
-
-                // Verify what we just wrote before deleting legacy localStorage data.
-                const migratedHistory = await TaharaDB.get(STORES.HISTORY);
-                const migratedFasting = await TaharaDB.get(STORES.FASTING);
-                const migratedLogs = await TaharaDB.get(STORES.LOGS);
-                const migratedStatus = await TaharaDB.get(STORES.STATUS);
-
-                migrationVerified = Array.isArray(migratedHistory)
-                    && !!migratedFasting && typeof migratedFasting === 'object'
-                    && !!migratedLogs && typeof migratedLogs === 'object'
-                    && !!migratedStatus && typeof migratedStatus === 'object'
-                    && (migratedStatus.status === "purity" || migratedStatus.status === "hayd")
-                    && typeof migratedStatus.lastChanged === 'string';
-            } catch (err) {
-                console.error("Migration parse error - some data may be lost:", err);
-                migrationVerified = false;
-            }
-
-            if (migrationVerified) {
-                localStorage.removeItem("tahara_history");
-                localStorage.removeItem("tahara_fasting");
-                localStorage.removeItem("tahara_logs");
-                localStorage.removeItem("tahara_status");
-                localStorage.removeItem("tahara_last_changed");
-                localStorage.setItem(MIGRATION_VERIFIED_KEY, "true");
-                console.log("Migration complete.");
-            } else {
-                localStorage.setItem(MIGRATION_VERIFIED_KEY, "failed");
-                console.error("Migration verification failed. Preserving legacy localStorage backup.");
-            }
-        }
+        await migrateLegacyLocalStorageToIndexedDB({
+            dbManager: TaharaDB,
+            storage: localStorage,
+            currentSchemaVersion: CURRENT_SCHEMA_VERSION,
+            logger: console
+        });
 
         // --- LOAD DATA FROM IndexedDB INTO APP STATE ---
         App.history = await TaharaDB.get(STORES.HISTORY) || [];
@@ -547,8 +498,6 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         App.status = statusData.status;
         App.lastChanged = statusData.lastChanged;
 
-        // Finalize: Ensure the schema version is saved
-        localStorage.setItem("tahara_schema_version", CURRENT_SCHEMA_VERSION.toString());
     }
 
     // RUN MIGRATIONS BEFORE ANYTHING ELSE (Moved to init)
@@ -568,7 +517,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
     function updateImportLimitHint() {
         const hint = el("importLimitHint");
         if (!hint) return;
-        const template = S("import_limit_hint", "Max import size: %size%");
+        const template = S("import_limit_hint");
         hint.innerText = template.replace("%size%", formatImportLimit(APP_LIMITS.MAX_BACKUP_IMPORT_BYTES));
     }
 
@@ -716,8 +665,8 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 await LocalNotifications.cancel({notifications: [{id: 1}]});
                 await LocalNotifications.schedule({
                     notifications: [{
-                        title: S("notif_title", "Tahara Check-in"),
-                        body: S("notif_body", "Don't forget to log your mood and symptoms today."),
+                        title: S("notif_title"),
+                        body: S("notif_body"),
                         id: 1,
                         schedule: {on: {hour: hours, minute: minutes}, repeats: true},
                         sound: null
@@ -739,12 +688,12 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 const {LocalNotifications} = Capacitor.Plugins;
                 await LocalNotifications.cancel({notifications: [{id: 2}]}); // Clear old one
 
-                let bodyText = S("notif_fasting_body", "You have %d days of Ramadan fasting left to make up.");
+                let bodyText = S("notif_fasting_body");
                 bodyText = bodyText.replace('%d', debt); // Inject the real number dynamically!
 
                 await LocalNotifications.schedule({
                     notifications: [{
-                        title: S("notif_fasting_title", "Fasting Reminder"),
+                        title: S("notif_fasting_title"),
                         body: bodyText,
                         id: 2,
                         // Capacitor Weekday: 1 = Sunday, 2 = Monday, 7 = Saturday
@@ -781,8 +730,8 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             const todayDate = now.toDateString();
 
             if (now.getHours() === hours && now.getMinutes() >= minutes && lastFired !== todayDate) {
-                new Notification(S("notif_title", "Tahara Check-in"), {
-                    body: S("notif_body", "Don't forget to log your mood and symptoms today."),
+                new Notification(S("notif_title"), {
+                    body: S("notif_body"),
                     icon: "./img/favicon-96x96.png"
                 });
                 localStorage.setItem("tahara_last_notif_date", todayDate);
@@ -798,7 +747,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         App.avgCycleLength = avgCycleLengthMs;
         App.avgHaydLength = avgHaydLengthMs;
 
-        const unit = S("unit_days", "d");
+        const unit = S("unit_days");
         const toDays = (ms) => Math.round(ms / 86400000) + unit;
 
         // B5: EMPTY STATE LOGIC
@@ -846,7 +795,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         if (!cachedDescText) return;
 
         if (App.history.length === 0) {
-            const welcomeMsg = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
+            const welcomeMsg = S("msg_welcome");
             if (cachedDescText.innerText !== welcomeMsg) {
                 cachedDescText.innerText = welcomeMsg;
                 cachedDescText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
@@ -896,7 +845,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         grid.replaceChildren();
         monthLabel.innerText = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
 
-        const weekdaysStr = S("calendar_weekdays", "S,M,T,W,T,F,S");
+        const weekdaysStr = S("calendar_weekdays");
         const days = weekdaysStr.split(',');
 
         if (weekHeader) {
@@ -924,9 +873,9 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 item.appendChild(text);
                 return item;
             };
-            legendContainer.appendChild(makeLegendItem("bg-amber-200 dark:bg-amber-700", S("status_purity", "Purity")));
-            legendContainer.appendChild(makeLegendItem("bg-purple-300 dark:bg-purple-700", S("status_change", "Change")));
-            legendContainer.appendChild(makeLegendItem("bg-rose-200 dark:bg-rose-700", S("status_hayd", "Hayd")));
+            legendContainer.appendChild(makeLegendItem("bg-amber-200 dark:bg-amber-700", S("status_purity")));
+            legendContainer.appendChild(makeLegendItem("bg-purple-300 dark:bg-purple-700", S("status_change")));
+            legendContainer.appendChild(makeLegendItem("bg-rose-200 dark:bg-rose-700", S("status_hayd")));
         }
 
         const year = calDate.getFullYear();
@@ -1087,7 +1036,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             const granted = await NotificationManager.requestPermission();
             if (!granted) {
                 e.target.checked = false;
-                showToast("notif_denied", "error", "Notification permission was denied.");
+                showToast("notif_denied", "error");
                 return;
             }
             el("reminderTimeContainer").classList.remove("hidden");
@@ -1109,7 +1058,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 const granted = await NotificationManager.requestPermission();
                 if (!granted) {
                     e.target.checked = false;
-                    showToast("notif_denied", "error", "Notification permission was denied.");
+                    showToast("notif_denied", "error");
                     return;
                 }
             }
@@ -1134,14 +1083,14 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             fullList.replaceChildren();
             const empty = document.createElement("div");
             empty.className = "text-center text-slate-400 text-sm py-12 italic";
-            empty.textContent = S("no_history", "No history yet");
+            empty.textContent = S("no_history");
             fullList.appendChild(empty);
             return;
         }
 
         const fragment = document.createDocumentFragment();
         App.history.forEach((entry, index) => {
-            const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
+            const label = entry.status === 'hayd' ? S("status_hayd") : S("status_purity");
             const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
             const bgClass = entry.status === 'hayd' ? 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20';
 
@@ -1193,45 +1142,83 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             }
 
             await saveState();
-            updateStatusUI();
-            renderFullInsights();
-            updateLiveCounter();
-            showToast("toast_entry_deleted", "neutral", "Entry removed");
+            syncStatusStateUI({includeHistory: true});
+            showToast("toast_entry_deleted", "neutral");
         });
     }
 
     // ==========================================
     // 7. STATE & ACTIONS
     // ==========================================
+    let statusToggleQueue = Promise.resolve();
+    let pendingStatusToggleOps = 0;
+
+    function setMainActionBusy(isBusy) {
+        const actionBtn = el("mainActionBtn");
+        if (!actionBtn) return;
+        if (isBusy) {
+            actionBtn.setAttribute("aria-busy", "true");
+            actionBtn.classList.add("opacity-70");
+        } else {
+            actionBtn.removeAttribute("aria-busy");
+            actionBtn.classList.remove("opacity-70");
+        }
+    }
+
+    function syncStatusStateUI({includeHistory = false, includeSettings = false} = {}) {
+        updateStatusUI();
+        renderCalendar();
+        if (includeHistory) renderFullInsights();
+        if (includeSettings) updateSettingsUI();
+        updateLiveCounter();
+    }
+
     async function saveState() {
         await TaharaDB.set(STORES.HISTORY, App.history);
         await TaharaDB.set(STORES.STATUS, {status: App.status, lastChanged: App.lastChanged});
     }
 
-    async function toggleStatus() {
+    async function applyStatusToggle() {
         App.status = App.status === "purity" ? "hayd" : "purity";
         App.lastChanged = new Date().toISOString();
         App.history.unshift({status: App.status, time: App.lastChanged});
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
         await saveState();
-        updateStatusUI();
+        syncStatusStateUI({includeHistory: true});
         const statusLabel = App.status === "purity" ? S("status_purity") : S("status_hayd");
         window.announce(`${S("announce_status")} ${statusLabel}`);
-        renderFullInsights();
-        showToast("toast_status_saved", "success", "Status updated");
-        updateLiveCounter();
-        const historyTabBtn = document.querySelector('[data-tab="history"]');
-        if (historyTabBtn) {
-            historyTabBtn.classList.add('animate-bounce', 'text-rose-500');
-            setTimeout(() => {
-                // Only remove the rose color if we aren't currently ON the history tab
-                historyTabBtn.classList.remove('animate-bounce');
-                const isHistoryVisible = !el('view-history').classList.contains('hidden');
-                if (!isHistoryVisible) {
-                    historyTabBtn.classList.remove('text-rose-500');
+        showToast("toast_status_saved", "success");
+    }
+
+    async function toggleStatus() {
+        pendingStatusToggleOps++;
+        App.pendingStatusOps = pendingStatusToggleOps;
+        setMainActionBusy(true);
+
+        const run = async () => {
+            try {
+                await applyStatusToggle();
+                const historyTabBtn = document.querySelector('[data-tab="history"]');
+                if (historyTabBtn) {
+                    historyTabBtn.classList.add('animate-bounce', 'text-rose-500');
+                    setTimeout(() => {
+                        // Only remove the rose color if we aren't currently ON the history tab
+                        historyTabBtn.classList.remove('animate-bounce');
+                        const isHistoryVisible = !el('view-history').classList.contains('hidden');
+                        if (!isHistoryVisible) {
+                            historyTabBtn.classList.remove('text-rose-500');
+                        }
+                    }, APP_TIMINGS.HISTORY_TAB_HIGHLIGHT_MS);
                 }
-            }, APP_TIMINGS.HISTORY_TAB_HIGHLIGHT_MS);
-        }
+            } finally {
+                pendingStatusToggleOps = Math.max(0, pendingStatusToggleOps - 1);
+                App.pendingStatusOps = pendingStatusToggleOps;
+                if (pendingStatusToggleOps === 0) setMainActionBusy(false);
+            }
+        };
+
+        statusToggleQueue = statusToggleQueue.then(run, run);
+        return statusToggleQueue;
     }
 
     function updateStatusUI() {
@@ -1243,21 +1230,21 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
 
         if (App.status === "purity") {
             if (statusText) {
-                statusText.innerText = S("status_purity", "Purity");
+                statusText.innerText = S("status_purity");
                 statusText.className = "text-3xl font-black text-amber-600 dark:text-amber-100 transition-colors";
             }
             if (actionBtn) {
-                actionBtn.innerText = S("btn_start_flow", "Mark Flow Started");
+                actionBtn.innerText = S("btn_start_flow");
                 actionBtn.style.background = "#fb7185";
             }
             if (orb) orb.classList.remove("status-hayd-pulse");
         } else {
             if (statusText) {
-                statusText.innerText = S("status_hayd", "Hayd");
+                statusText.innerText = S("status_hayd");
                 statusText.className = "text-3xl font-black text-rose-500 dark:text-rose-300 transition-colors";
             }
             if (actionBtn) {
-                actionBtn.innerText = S("btn_end_flow", "Mark Purity Achieved");
+                actionBtn.innerText = S("btn_end_flow");
                 actionBtn.style.background = "#10b981";
             }
             if (orb) orb.classList.add("status-hayd-pulse");
@@ -1326,7 +1313,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         if (success) {
             localStorage.setItem("tahara_last_backup", new Date().toISOString());
             updateSettingsUI();
-            showToast("toast_backup_success", "success", "Backup saved");
+            showToast("toast_backup_success", "success");
         }
     }
 
@@ -1345,7 +1332,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             if (!file) return;
             if (file.size > APP_LIMITS.MAX_BACKUP_IMPORT_BYTES) {
                 addRestoreAudit("restore_rejected_too_large", {size: file.size, max: APP_LIMITS.MAX_BACKUP_IMPORT_BYTES});
-                showToast("import_too_large", "error", "Backup file is too large to import safely.");
+                showToast("import_too_large", "error");
                 pendingImportData = null;
                 return;
             }
@@ -1363,7 +1350,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                     showRestorePreview(normalized);
                 } catch (err) {
                     addRestoreAudit("restore_rejected_invalid_json", {reason: err?.message || "parse_failed"});
-                    showToast("import_error", "error", "Error: Invalid backup file. The data is corrupted or unsupported.");
+                    showToast("import_error", "error");
                     pendingImportData = null;
                 }
             };
@@ -1404,7 +1391,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         const closeBtn = document.createElement("button");
         closeBtn.className = "modal-close-btn w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform";
         closeBtn.setAttribute("data-i18n-aria", "aria_close");
-        closeBtn.textContent = S("btn_close", "Close");
+        closeBtn.textContent = S("btn_close");
         card.appendChild(closeBtn);
 
         modal.appendChild(card);
@@ -1471,7 +1458,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors";
         cancelBtn.setAttribute("data-i18n-aria", "aria_close");
-        cancelBtn.textContent = S("btn_cancel", "Cancel");
+        cancelBtn.textContent = S("btn_cancel");
         btnRow.appendChild(cancelBtn);
 
         const confirmBtn = document.createElement("button");
@@ -1504,7 +1491,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         const normalized = normalizeBackupData(data);
         if (!normalized) {
             addRestoreAudit("restore_rejected_invalid_payload", {reason: "preview_normalize_failed"});
-            showToast("import_error", "error", "Invalid data format");
+            showToast("import_error", "error");
             pendingImportData = null;
             return;
         }
@@ -1512,7 +1499,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         pendingImportData = normalized;
         const historyCount = normalized.tahara_history.length;
         const logCount = Object.keys(normalized.tahara_logs || {}).length;
-        const date = normalized.export_date ? formatDateTime(normalized.export_date) : S("unknown_date", "Unknown Date");
+        const date = normalized.export_date ? formatDateTime(normalized.export_date) : S("unknown_date");
         const incomingVersion = normalized.schema_version || 1;
 
         const container = document.createElement("div");
@@ -1530,12 +1517,12 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
 
         const title = document.createElement("h2");
         title.className = "text-xl font-serif italic text-rose-500 mb-2";
-        title.textContent = S("preview_restore", "Preview Restore");
+        title.textContent = S("preview_restore");
         card.appendChild(title);
 
         const warning = document.createElement("p");
         warning.className = "text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30";
-        warning.textContent = `⚠️ ${S("restore_warning", "Applying this will overwrite your current device data permanently.")}`;
+        warning.textContent = `⚠️ ${S("restore_warning")}`;
         card.appendChild(warning);
 
         const statsList = document.createElement("ul");
@@ -1552,22 +1539,22 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
             row.appendChild(right);
             return row;
         };
-        statsList.appendChild(makeStatRow(S("backup_date", "Backup Date:"), date));
-        statsList.appendChild(makeStatRow(S("history_entries", "History Entries:"), String(historyCount)));
-        statsList.appendChild(makeStatRow(S("daily_logs", "Daily Logs:"), String(logCount)));
-        statsList.appendChild(makeStatRow(S("data_version", "Data Version:"), `v${incomingVersion}`, true));
+        statsList.appendChild(makeStatRow(S("backup_date"), date));
+        statsList.appendChild(makeStatRow(S("history_entries"), String(historyCount)));
+        statsList.appendChild(makeStatRow(S("daily_logs"), String(logCount)));
+        statsList.appendChild(makeStatRow(S("data_version"), `v${incomingVersion}`, true));
         card.appendChild(statsList);
 
         const btnRow = document.createElement("div");
         btnRow.className = "flex gap-3";
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5";
-        cancelBtn.textContent = S("btn_cancel", "Cancel");
+        cancelBtn.textContent = S("btn_cancel");
         btnRow.appendChild(cancelBtn);
 
         const confirmBtn = document.createElement("button");
         confirmBtn.className = "modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30";
-        confirmBtn.textContent = S("btn_confirm_restore", "Confirm Restore");
+        confirmBtn.textContent = S("btn_confirm_restore");
         btnRow.appendChild(confirmBtn);
 
         card.appendChild(btnRow);
@@ -1599,7 +1586,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         if (!d) {
             addRestoreAudit("restore_rejected_invalid_payload", {reason: "confirm_normalize_failed"});
             console.error("Invalid data format", d);
-            showToast("import_error", "error", "Invalid data format");
+            showToast("import_error", "error");
             window.cancelRestore();
             return;
         }
@@ -1628,20 +1615,16 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 App.lastChanged = statusData.lastChanged;
             }
 
-            updateStatusUI();
-            renderCalendar();
-            renderFullInsights();
-            updateSettingsUI();
-            updateLiveCounter();
+            syncStatusStateUI({includeHistory: true, includeSettings: true});
             addRestoreAudit("restore_applied", {history: d.tahara_history.length, logs: Object.keys(d.tahara_logs || {}).length});
-            showToast("toast_backup_success", "success", "Data restored successfully");
+            showToast("import_success", "success");
 
             console.log("Restore complete. Reloading for clean state...");
             setTimeout(() => location.reload(), APP_TIMINGS.RESTORE_RELOAD_MS);
         } catch (err) {
             addRestoreAudit("restore_failed", {reason: err?.message || "unknown"});
             console.error("Restore failed:", err);
-            showToast("import_error", "error", "Failed to restore database");
+            showToast("restore_failed", "error");
             window.restoreComplete = true; // Still set to prevent timeout
         }
     };
@@ -1663,10 +1646,8 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                     App.lastChanged = new Date().toISOString();
                 }
                 await saveState();
-                updateStatusUI();
-                renderFullInsights();
-                showToast("toast_entry_deleted", "neutral", "Entry removed");
-                updateLiveCounter();
+                syncStatusStateUI({includeHistory: true});
+                showToast("toast_entry_deleted", "neutral");
             }
         );
     }
@@ -1694,14 +1675,11 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 await saveFasting();
 
                 // Refresh the UI
-                updateStatusUI();
-                renderFullInsights();
-                updateSettingsUI(); // Ensure warning dots reset
-                updateLiveCounter();
+                syncStatusStateUI({includeHistory: true, includeSettings: true}); // Ensure warning dots reset
                 NotificationManager.scheduleFastingReminder();
 
                 // Show the toast safely
-                showToast("toast_data_cleared", "error", "All data reset");
+                showToast("toast_data_cleared", "error");
             }
         );
     }
@@ -1743,7 +1721,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         if (!banner) return;
         if (platform === "ios") {
             iosText.classList.remove("hidden");
-            const rawText = S("install_ios_desc", "Tap Share and Add to Home Screen");
+            const rawText = S("install_ios_desc");
             iosText.replaceChildren();
             const parts = rawText.split(/(%share_icon%|%plus_icon%)/g);
             for (const part of parts) {
@@ -1800,13 +1778,13 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
 
     // 1. NEW: SEO Updater Function
     function updateSEO() {
-        document.title = S("app_title", "Tahara");
+        document.title = S("app_title");
 
         const descMeta = document.querySelector('meta[name="description"]');
-        if (descMeta) descMeta.setAttribute("content", S("app_desc", "A private, offline-first Islamic Purity tracker."));
+        if (descMeta) descMeta.setAttribute("content", S("app_desc"));
 
         const keysMeta = document.querySelector('meta[name="keywords"]');
-        if (keysMeta) keysMeta.setAttribute("content", S("app_keywords", "Tahara, Islamic Purity, Salah Tracker"));
+        if (keysMeta) keysMeta.setAttribute("content", S("app_keywords"));
 
         document.documentElement.lang = App.currentLang;
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
@@ -1830,7 +1808,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         ldJson.textContent = JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            "name": S("app_title", "Tahara"),
+            "name": S("app_title"),
             "applicationCategory": "HealthApplication",
             "operatingSystem": "Android, iOS, Web",
             "offers": {
@@ -1838,7 +1816,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 "price": "0",
                 "priceCurrency": "USD"
             },
-            "description": S("app_desc", "A private, offline-first Islamic Purity tracker."),
+            "description": S("app_desc"),
             "author": {
                 "@type": "Organization",
                 "name": "Open Waqf"
@@ -1903,9 +1881,9 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         const btn = el("onbNextBtn");
         if (btn) {
             if (currentOnbStep === 3) {
-                btn.innerText = S("onb_start", "Get Started");
+                btn.innerText = S("onb_start");
             } else {
-                btn.innerText = S("onb_next", "Next");
+                btn.innerText = S("onb_next");
             }
         }
     }
@@ -2094,7 +2072,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                     updateStatusUI();
                     calculateStats();
                     renderCalendar();
-                    showToast("toast_status_saved", "success", "Rules updated");
+                    showToast("toast_rules_updated", "success");
                 };
             }
 
@@ -2106,7 +2084,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                     localStorage.setItem("tahara_habitDays", App.habitDays);
                     calculateStats();
                     updateStatusUI();
-                    showToast("toast_status_saved", "success", "Habit updated");
+                    showToast("toast_habit_updated", "success");
                 };
             }
 
@@ -2204,10 +2182,10 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         content.className = "flex flex-col";
         const appName = document.createElement("span");
         appName.className = "text-[10px] uppercase tracking-widest opacity-70";
-        appName.textContent = S("app_title", "Tahara");
+        appName.textContent = S("app_title");
         const updateLabel = document.createElement("span");
         updateLabel.className = "text-xs font-bold";
-        updateLabel.textContent = S("update_available", "Update ready!");
+        updateLabel.textContent = S("update_available");
         content.appendChild(appName);
         content.appendChild(updateLabel);
         toast.appendChild(content);
@@ -2215,7 +2193,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         const refreshBtn = document.createElement("button");
         refreshBtn.id = "execRefresh";
         refreshBtn.className = "bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all";
-        refreshBtn.textContent = S("btn_refresh", "REFRESH");
+        refreshBtn.textContent = S("btn_refresh");
         toast.appendChild(refreshBtn);
         container.appendChild(toast);
 

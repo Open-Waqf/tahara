@@ -51,6 +51,22 @@ describe('TaharaEngine.calculateAverages', () => {
         expect(result.avgCycleLengthMs).toBe(14 * DAY_MS);
         expect(result.avgHaydLengthMs).toBe(6.5 * DAY_MS);
     });
+
+    it('ignores cycle intervals shorter than minTuhr (overlap/irregular fragment)', () => {
+        const DAY_MS = 86400000;
+        const history = [
+            {status: 'purity', time: '2026-04-03T00:00:00.000Z'},
+            {status: 'hayd', time: '2026-03-30T00:00:00.000Z'},
+            {status: 'purity', time: '2026-03-25T00:00:00.000Z'},
+            {status: 'hayd', time: '2026-03-20T00:00:00.000Z'},
+            {status: 'purity', time: '2026-03-01T00:00:00.000Z'},
+            {status: 'hayd', time: '2026-02-20T00:00:00.000Z'}
+        ];
+
+        const result = TaharaEngine.calculateAverages(history, FiqhRules.shafi.rules);
+        // Hayd starts: Mar30, Mar20, Feb20 => intervals 10d (invalid), 28d (valid)
+        expect(result.avgCycleLengthMs).toBe(28 * DAY_MS);
+    });
 });
 
 describe('TaharaEngine.predictNextCycle', () => {
@@ -123,5 +139,26 @@ describe('Fiqh-Symptom Independence', () => {
         
         expect(context.ruleKey).not.toBe('msg_hayd_generic');
         expect(context.ruleKey).toContain('purity');
+    });
+});
+
+describe('TaharaEngine.getFiqhContext edge handling', () => {
+    it('clamps negative day drift to day 0 when device clock is skewed', () => {
+        const now = new Date('2026-03-03T10:00:00.000Z');
+        const futureLastChanged = '2026-03-05T10:00:00.000Z';
+        const ctx = TaharaEngine.getFiqhContext('purity', futureLastChanged, now, FiqhRules.hanafi.rules);
+
+        expect(ctx.days).toBe(0);
+        expect(ctx.isAlert).toBe(true);
+        expect(ctx.ruleKey).toContain('msg_purity_day0');
+    });
+
+    it('handles invalid lastChanged timestamps safely', () => {
+        const now = new Date('2026-03-03T10:00:00.000Z');
+        const ctx = TaharaEngine.getFiqhContext('hayd', 'not-a-date', now, FiqhRules.hanafi.rules);
+
+        expect(ctx.days).toBe(0);
+        expect(ctx.ruleKey).toBe('msg_hayd_early');
+        expect(ctx.isWarning).toBe(false);
     });
 });
