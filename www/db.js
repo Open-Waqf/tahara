@@ -186,6 +186,16 @@ export const TaharaDB = {
             request.onerror = () => resolve(false);
             request.onblocked = () => resolve(false);
         });
+    },
+
+    /**
+     * Closes the database connection to free up memory.
+     */
+    close() {
+        if (this.db) {
+            this.db.close();
+            this.db = null;
+        }
     }
 };
 

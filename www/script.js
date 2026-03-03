@@ -281,7 +281,7 @@ import {FiqhRules} from './rules.js';
                 if (document.visibilityState === "visible") {
                     this.handleForeground();
                 } else {
-                    App.lastActive = Date.now();
+                    this.handleBackground();
                 }
             });
 
@@ -290,12 +290,19 @@ import {FiqhRules} from './rules.js';
                 const { App: CapApp } = Capacitor.Plugins;
                 CapApp.addListener('appStateChange', ({ isActive }) => {
                     if (isActive) this.handleForeground();
-                    else App.lastActive = Date.now();
+                    else this.handleBackground();
                 });
             }
         },
 
-        handleForeground() {
+        handleBackground() {
+            App.lastActive = Date.now();
+            TaharaDB.close(); // Destroy DB connection to free memory on Android Go
+        },
+
+        async handleForeground() {
+            await TaharaDB.init(); // Re-establish DB connection
+            
             if (!App.vaultEnabled || App.vaultLocked) return;
             
             // Grace Period: 60 seconds

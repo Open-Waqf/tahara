@@ -332,7 +332,10 @@
     "vault_biometric_label": "البصمة",
     "vault_pin_label": "الرمز السري",
     "toast_vault_enabled": "تم تفعيل الخزنة",
-    "toast_vault_disabled": "تم تعطيل الخزنة"
+    "toast_vault_disabled": "تم تعطيل الخزنة",
+    "health_red_flags_title": "الوعي الصحي وعدم الانتظام",
+    "health_red_flags_desc": "بناءً على التوجيهات الطبية، قد تستدعي بعض الأنماط مثل دورة أقصر من 21 يومًا، أطول من 35 يومًا، أو نزيف يستمر أكثر من 10 أيام استشارة طبيب مختص.",
+    "health_disclaimer": "إخلاء مسؤولية: طهارة أداة تعليمية وليست جهازًا للتشخيص الطبي."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
