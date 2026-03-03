@@ -1,5 +1,6 @@
 import {TaharaEngine} from './engine.js';
 import {TaharaDB, STORES} from './db.js';
+import {TaharaCrypto} from './crypto.js';
 
 (() => {
     // ==========================================
@@ -19,7 +20,13 @@ import {TaharaDB, STORES} from './db.js';
 
         modalOpen: false,
         avgCycleLength: 0,
-        avgHaydLength: 0
+        avgHaydLength: 0,
+
+        // Vault Properties
+        vaultEnabled: localStorage.getItem("tahara_vault_enabled") === "true",
+        isAwaitingIntent: false,
+        vaultLocked: true,
+        lastActive: Date.now()
     };
 
     // E3: Local Error Logger
@@ -40,7 +47,268 @@ import {TaharaDB, STORES} from './db.js';
         return false;
     };
 
+    // ==========================================
+    // PRIVACY VAULT LOGIC (VAULT-GCM-NATIVE)
+    // ==========================================
+    const VAULT_KEY_ALIAS = "tahara_master_key";
+    const WEBAUTHN_ID_KEY = "tahara_webauthn_id";
+
+    const VaultManager = {
+        async init() {
+            if (!App.vaultEnabled) {
+                App.vaultLocked = false;
+                return;
+            }
+            this.showLockScreen();
+        },
+
+        showLockScreen() {
+            App.vaultLocked = true;
+            const lockScreen = el("vaultLockScreen");
+            if (lockScreen) {
+                lockScreen.classList.remove("hidden");
+                // Native Vault has no PIN UI
+                el("vaultPinContainer")?.classList.add("hidden");
+            }
+        },
+
+        async _webAuthnRegister() {
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            const credential = await navigator.credentials.create({
+                publicKey: {
+                    challenge,
+                    rp: { name: "Tahara" },
+                    user: {
+                        id: Uint8Array.from("tahara-user", c => c.charCodeAt(0)),
+                        name: "user@tahara.local",
+                        displayName: "Tahara Owner"
+                    },
+                    pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+                    authenticatorSelection: {
+                        authenticatorAttachment: "platform",
+                        userVerification: "required"
+                    },
+                    timeout: 60000
+                }
+            });
+            if (credential) {
+                localStorage.setItem(WEBAUTHN_ID_KEY, btoa(String.fromCharCode(...new Uint8Array(credential.rawId))));
+                return true;
+            }
+            return false;
+        },
+
+        async _webAuthnVerify() {
+            const storedIdBase64 = localStorage.getItem(WEBAUTHN_ID_KEY);
+            if (!storedIdBase64) return false;
+            const storedId = Uint8Array.from(atob(storedIdBase64), c => c.charCodeAt(0));
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+            const credential = await navigator.credentials.get({
+                publicKey: {
+                    challenge,
+                    allowCredentials: [{
+                        id: storedId.buffer,
+                        type: "public-key"
+                    }],
+                    userVerification: "required"
+                }
+            });
+            return !!credential;
+        },
+
+        async handleUnlock() {
+            try {
+                // 1. VERIFY IDENTITY (Triggers OS prompt)
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const { NativeBiometric } = Capacitor.Plugins;
+                    await NativeBiometric.verifyIdentity({
+                        reason: S("vault_unlock_btn", "Unlock App"),
+                        title: S("vault_lock_title", "Tahara Vault")
+                    });
+                } else if (window.PublicKeyCredential) {
+                    const ok = await this._webAuthnVerify();
+                    if (!ok) throw new Error("Verification failed");
+                }
+
+                // 2. RETRIEVE KEY
+                let rawKeyBase64 = null;
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const { NativeBiometric } = Capacitor.Plugins;
+                    const credentials = await NativeBiometric.getCredentials({
+                        server: VAULT_KEY_ALIAS
+                    });
+                    rawKeyBase64 = credentials.password;
+                } else {
+                    rawKeyBase64 = localStorage.getItem(VAULT_KEY_ALIAS);
+                }
+
+                if (!rawKeyBase64) throw new Error("No key found");
+
+                // 3. IMPORT AND ACTIVATE
+                const rawKey = Uint8Array.from(atob(rawKeyBase64), c => c.charCodeAt(0));
+                const key = await TaharaCrypto.importKey(rawKey);
+                
+                TaharaDB.setVaultKey(key);
+                this.unlockUI();
+            } catch (e) {
+                console.error("Auth failed:", e);
+                if (e.message !== "User canceled" && e.name !== "NotAllowedError") {
+                    showToast("vault_auth_failed", "error", "Authentication failed");
+                }
+            }
+        },
+
+        unlockUI() {
+            App.vaultLocked = false;
+            App.lastActive = Date.now();
+            el("vaultLockScreen").classList.add("hidden");
+            
+            runDataMigrations().then(() => {
+                updateStatusUI();
+                renderCalendar();
+                if (el("view-history") && !el("view-history").classList.contains("hidden")) {
+                    renderFullInsights();
+                }
+            });
+        },
+
+        async toggleVault(enabled) {
+            try {
+                // ALWAYS Verify identity before changing vault state
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const { NativeBiometric } = Capacitor.Plugins;
+                    const availability = await NativeBiometric.isAvailable();
+                    if (!availability.isAvailable) {
+                        showToast("vault_auth_failed", "error", "Biometrics not available");
+                        el("vaultToggle").checked = false;
+                        return;
+                    }
+                    await NativeBiometric.verifyIdentity({
+                        reason: S("section_vault"),
+                        title: S("vault_toggle")
+                    });
+                } else if (window.PublicKeyCredential) {
+                    if (enabled) {
+                        const success = await this._webAuthnRegister();
+                        if (!success) throw new Error("Registration failed");
+                    } else {
+                        const success = await this._webAuthnVerify();
+                        if (!success) throw new Error("Verification failed");
+                    }
+                }
+
+                if (enabled) {
+                    const key = await TaharaCrypto.generateKey();
+                    const rawKey = await TaharaCrypto.exportKey(key);
+                    const rawKeyBase64 = btoa(String.fromCharCode(...rawKey));
+
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        const { NativeBiometric } = Capacitor.Plugins;
+                        await NativeBiometric.setCredentials({
+                            server: VAULT_KEY_ALIAS,
+                            username: "tahara_user",
+                            password: rawKeyBase64
+                        });
+                    } else {
+                        localStorage.setItem(VAULT_KEY_ALIAS, rawKeyBase64);
+                    }
+
+                    localStorage.setItem("tahara_vault_enabled", "true");
+                    App.vaultEnabled = true;
+                    TaharaDB.setVaultKey(key);
+                    await saveState();
+                    await saveFasting();
+                    await TaharaDB.set(STORES.LOGS, App.dailyLogs);
+                    showToast("toast_vault_enabled", "success");
+                } else {
+                    if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                        const { NativeBiometric } = Capacitor.Plugins;
+                        await NativeBiometric.deleteCredentials({ server: VAULT_KEY_ALIAS });
+                    }
+                    await runDataMigrations();
+                    TaharaDB.setVaultKey(null);
+                    localStorage.removeItem(VAULT_KEY_ALIAS);
+                    localStorage.removeItem(WEBAUTHN_ID_KEY);
+                    localStorage.setItem("tahara_vault_enabled", "false");
+                    App.vaultEnabled = false;
+                    await saveState();
+                    await saveFasting();
+                    await TaharaDB.set(STORES.LOGS, App.dailyLogs);
+                    showToast("toast_vault_disabled", "neutral");
+                }
+            } catch (e) {
+                console.error("Toggle Vault Error:", e);
+                el("vaultToggle").checked = !enabled;
+                if (e.name !== "NotAllowedError" && e.message !== "User canceled") {
+                    showToast("vault_auth_failed", "error");
+                }
+            }
+        },
+
+        async panicWipe() {
+            showConfirmModal("vault_panic_btn", "clear_confirm", "clear_data", async () => {
+                // 1. Destroy IndexedDB
+                await TaharaDB.deleteDatabase();
+                
+                // 2. Clear Secure Storage
+                if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                    const { NativeBiometric } = Capacitor.Plugins;
+                    try {
+                        await NativeBiometric.deleteCredentials({ server: VAULT_KEY_ALIAS });
+                    } catch(e) {}
+                }
+                
+                // 3. Clear all LocalStorage
+                localStorage.clear();
+                
+                // 4. Force reload to Onboarding
+                window.location.href = window.location.pathname;
+            });
+        }
+    };
+
+    const LifecycleManager = {
+        init() {
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") {
+                    this.handleForeground();
+                } else {
+                    App.lastActive = Date.now();
+                }
+            });
+
+            // Capacitor App State
+            if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+                const { App: CapApp } = Capacitor.Plugins;
+                CapApp.addListener('appStateChange', ({ isActive }) => {
+                    if (isActive) this.handleForeground();
+                    else App.lastActive = Date.now();
+                });
+            }
+        },
+
+        handleForeground() {
+            if (!App.vaultEnabled || App.vaultLocked) return;
+            
+            // Grace Period: 60 seconds
+            const now = Date.now();
+            const elapsed = (now - App.lastActive) / 1000;
+            
+            if (App.isAwaitingIntent) {
+                App.isAwaitingIntent = false; // OS Intent exception
+                return;
+            }
+
+            if (elapsed > 60) {
+                VaultManager.showLockScreen();
+            }
+        }
+    };
+
     window.safeDownloadJSON = async (dataObj, fileName) => {
+        App.isAwaitingIntent = true;
         const jsonStr = JSON.stringify(dataObj, null, 2);
 
         // --- 1. CAPACITOR NATIVE ANDROID / IOS ---
@@ -280,6 +548,9 @@ import {TaharaDB, STORES} from './db.js';
         el("reminderToggle").checked = App.reminderEnabled;
         el("reminderTime").value = App.reminderTime;
         if (App.reminderEnabled) el("reminderTimeContainer").classList.remove("hidden");
+
+        const vaultToggle = el("vaultToggle");
+        if (vaultToggle) vaultToggle.checked = App.vaultEnabled;
 
         // Set Warning Sign for Backup
         const lastBackupStr = localStorage.getItem("tahara_last_backup");
@@ -863,6 +1134,7 @@ import {TaharaDB, STORES} from './db.js';
     };
 
     async function exportData() {
+        App.isAwaitingIntent = true;
         const data = {
             schema_version: CURRENT_SCHEMA_VERSION,
             tahara_status: App.status,
@@ -884,6 +1156,7 @@ import {TaharaDB, STORES} from './db.js';
     }
 
     function importData() {
+        App.isAwaitingIntent = true;
         const input = document.createElement("input");
         input.type = "file";
 
@@ -942,7 +1215,7 @@ import {TaharaDB, STORES} from './db.js';
         if (modal) modal.parentElement.remove();
     };
 
-    function showConfirmModal(titleKey, messageKey, confirmBtnKey, onConfirmCallback) {
+    window.showConfirmModal = (titleKey, messageKey, confirmBtnKey, onConfirmCallback) => {
         if (el("customConfirmModal")) return;
 
         const modalHtml = `
@@ -970,7 +1243,7 @@ import {TaharaDB, STORES} from './db.js';
             window.closeConfirmModal();
             onConfirmCallback();
         });
-    }
+    };
 
     window.closeConfirmModal = () => {
         const modal = document.getElementById("customConfirmModal");
@@ -1309,9 +1582,6 @@ import {TaharaDB, STORES} from './db.js';
     }
 
     async function init() {
-        // --- 0. RUN MIGRATIONS & LOAD DATA ---
-        await runDataMigrations();
-
         // --- 1. CRITICAL PATH (Blocks UI until done) ---
         try {
             const res = await fetch("strings.json");
@@ -1335,6 +1605,11 @@ import {TaharaDB, STORES} from './db.js';
                 document.documentElement.style.opacity = '1';
             });
         }
+
+        // --- 2. DATA INITIALIZATION ---
+        await runDataMigrations();
+        await VaultManager.init();
+        LifecycleManager.init();
 
         // Apply Direction & Theme immediately
         document.documentElement.dir = App.currentLang === "ar" ? "rtl" : "ltr";
@@ -1449,12 +1724,21 @@ import {TaharaDB, STORES} from './db.js';
             if (localStorage.getItem("tahara_onboarded") !== "true") {
                 startOnboarding();
             }
-
             // Bind Settings buttons
             if (el("settingsBackupBtn")) el("settingsBackupBtn").onclick = exportData;
             if (el("settingsRestoreBtn")) el("settingsRestoreBtn").onclick = importData;
             if (el("settingsResetBtn")) el("settingsResetBtn").onclick = clearAllData;
             if (el("settingsDiagnosticBtn")) el("settingsDiagnosticBtn").onclick = exportDiagnostics;
+
+            // Vault Bindings
+            const vaultToggle = el("vaultToggle");
+            if (vaultToggle) vaultToggle.onchange = (e) => VaultManager.toggleVault(e.target.checked);
+            
+            const vaultUnlockBtn = el("vaultUnlockBtn");
+            if (vaultUnlockBtn) vaultUnlockBtn.onclick = () => VaultManager.handleUnlock();
+            
+            const vaultPanicBtn = el("vaultPanicBtn");
+            if (vaultPanicBtn) vaultPanicBtn.onclick = () => VaultManager.panicWipe();
 
             // Bind Contact button
             const contactBtn = el("contactBtn");

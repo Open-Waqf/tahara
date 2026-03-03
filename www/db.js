@@ -4,6 +4,8 @@
  * Adheres to <500KB bundle size mandate.
  */
 
+import { TaharaCrypto } from './crypto.js';
+
 const DB_NAME = 'tahara_db';
 const DB_VERSION = 1;
 const STORES = {
@@ -16,6 +18,15 @@ const STORES = {
 export const TaharaDB = {
     db: null,
     isSupported: true,
+    vaultKey: null, // The CryptoKey used for encryption
+
+    /**
+     * Sets the vault key for encryption/decryption.
+     * @param {CryptoKey} key 
+     */
+    setVaultKey(key) {
+        this.vaultKey = key;
+    },
 
     /**
      * Initializes the IndexedDB database.
@@ -86,7 +97,18 @@ export const TaharaDB = {
                 const store = transaction.objectStore(storeName);
                 const request = store.get(key);
 
-                request.onsuccess = () => resolve(request.result);
+                request.onsuccess = async () => {
+                    let result = request.result;
+                    if (result && this.vaultKey && (result instanceof Uint8Array)) {
+                        try {
+                            result = await TaharaCrypto.decrypt(result, this.vaultKey);
+                        } catch (e) {
+                            console.error("Decryption failed:", e);
+                            return resolve(null);
+                        }
+                    }
+                    resolve(result);
+                };
                 request.onerror = () => {
                     console.error("Get error:", request.error);
                     resolve(null);
@@ -104,20 +126,26 @@ export const TaharaDB = {
     set(storeName, value, key = 'data') {
         return new Promise((resolve) => {
             if (!this.db) return resolve(false);
-            try {
-                const transaction = this.db.transaction(storeName, 'readwrite');
-                const store = transaction.objectStore(storeName);
-                const request = store.put(value, key);
+            (async () => {
+                try {
+                    let finalValue = value;
+                    if (this.vaultKey) {
+                        finalValue = await TaharaCrypto.encrypt(value, this.vaultKey);
+                    }
+                    const transaction = this.db.transaction(storeName, 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.put(finalValue, key);
 
-                request.onsuccess = () => resolve(true);
-                request.onerror = () => {
-                    console.error("Set error:", request.error);
+                    request.onsuccess = () => resolve(true);
+                    request.onerror = () => {
+                        console.error("Set error:", request.error);
+                        resolve(false);
+                    };
+                } catch (e) {
+                    console.error("Set transaction error:", e);
                     resolve(false);
-                };
-            } catch (e) {
-                console.error("Set transaction error:", e);
-                resolve(false);
-            }
+                }
+            })();
         });
     },
 
@@ -142,6 +170,22 @@ export const TaharaDB = {
             });
         });
         await Promise.all(promises);
+    },
+
+    /**
+     * Completely destroys the IndexedDB database.
+     */
+    async deleteDatabase() {
+        if (this.db) {
+            this.db.close();
+            this.db = null;
+        }
+        return new Promise((resolve) => {
+            const request = indexedDB.deleteDatabase(DB_NAME);
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => resolve(false);
+            request.onblocked = () => resolve(false);
+        });
     }
 };
 

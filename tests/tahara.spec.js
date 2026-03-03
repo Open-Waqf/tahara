@@ -363,5 +363,81 @@ test.describe('Tahara E2E UX Paths', () => {
         // Verify toast
         await expect(page.locator('#toast-container')).toContainText('Diagnostic log saved');
     });
-});
 
+    test('15. Privacy Vault: Enable, Lock, and Unlock via OS Fallback', async ({page}) => {
+        // Mock WebAuthn globally for this test
+        await page.addInitScript(() => {
+            if (navigator.credentials) {
+                // Mock registration returning a fake rawId
+                navigator.credentials.create = async () => ({
+                    rawId: new Uint8Array([1, 2, 3, 4]).buffer
+                });
+                // Mock verification
+                navigator.credentials.get = async () => ({});
+            }
+        });
+
+        // Clear everything first
+        await page.goto('/');
+        await page.evaluate(async () => {
+            localStorage.clear();
+            const dbs = await window.indexedDB.databases();
+            for (const db of dbs) {
+                await window.indexedDB.deleteDatabase(db.name);
+            }
+        });
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+
+        // 1. Navigate to Settings and Toggle Vault
+        await page.locator('button[data-tab="settings"]').click();
+        const vaultToggle = page.locator('#vaultToggle + div');
+        
+        await vaultToggle.click();
+        // Give time for toggle logic (encryption of existing data) to run
+        await page.waitForTimeout(1000);
+        
+        // 2. Reload and Verify Lock Screen
+        await page.reload();
+        await page.waitForTimeout(1000); 
+
+        await expect(page.locator('#vaultLockScreen')).toBeVisible();
+
+        // 3. Unlock by clicking the Unlock button (triggers fallback in non-native)
+        await page.locator('#vaultUnlockBtn').click();
+
+        // Verify Lock Screen is hidden
+        await expect(page.locator('#vaultLockScreen')).toBeHidden();
+        await expect(page.locator('#current-state-text')).toContainText('Purity');
+    });
+
+    test('16. Privacy Vault: Panic Wipe from Lock Screen', async ({page}) => {
+        // Setup locked state
+        await page.goto('/');
+        await page.evaluate(async () => {
+            localStorage.clear();
+            localStorage.setItem('tahara_onboarded', 'true');
+            localStorage.setItem('tahara_vault_enabled', 'true');
+            localStorage.setItem('tahara_master_key', btoa('fake-key-content'));
+        });
+        await page.reload();
+        await page.waitForTimeout(1000);
+
+        await expect(page.locator('#vaultLockScreen')).toBeVisible();
+
+        // Mock confirmation for panic wipe
+        await page.evaluate(() => {
+            window.showConfirmModal = (t, m, b, cb) => cb();
+        });
+
+        // Trigger Panic Wipe
+        await page.locator('#vaultPanicBtn').click();
+
+        // Wait for lock screen to be hidden (means reload/redirect happened)
+        await expect(page.locator('#vaultLockScreen')).toBeHidden({ timeout: 15000 });
+
+        // Verify Storage Cleared
+        const vaultEnabled = await page.evaluate(() => localStorage.getItem('tahara_vault_enabled'));
+        expect(vaultEnabled).toBeNull();
+    });
+});

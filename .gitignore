@@ -11,6 +11,10 @@ android/local.properties
 .idea/
 .gradle/
 *.log
+# AI CLI config
+.gemini/
+.claude/
+.codex/
 
 # Security (CRITICAL)
 *.jks
