@@ -99,6 +99,10 @@ export const TaharaDB = {
 
                 request.onsuccess = async () => {
                     let result = request.result;
+                    if (result instanceof Uint8Array && !this.vaultKey) {
+                        // Vault is enabled but still locked; avoid leaking encrypted blobs into app state.
+                        return resolve(null);
+                    }
                     if (result && this.vaultKey && (result instanceof Uint8Array)) {
                         try {
                             result = await TaharaCrypto.decrypt(result, this.vaultKey);

@@ -9,8 +9,9 @@
     "watch:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
     "build": "npm run build:css",
     "size": "size-limit",
-    "test:unit": "vitest run --exclude tests/**",
+    "test:unit": "vitest run engine.test.js backup.test.js db.test.js",
     "test:e2e": "playwright test",
+    "test:security": "vitest run backup.test.js db.test.js && playwright test -g \"Backup Restore Security|Backup Restore UX|Vault Lock State\"",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "size-limit": [

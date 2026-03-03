@@ -2,14 +2,16 @@ import {TaharaEngine} from './engine.js';
 import {TaharaDB, STORES} from './db.js';
 import {TaharaCrypto} from './crypto.js';
 import {FiqhRules} from './rules.js';
+import {normalizeBackupData} from './backup.js';
+import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from './constants.js';
 
 (() => {
     // ==========================================
     // 1. APP STATE & HELPERS
     // ==========================================
     const App = {
-        uiStrings: {},
-        defaultStrings: {},
+        uiStrings: BUILTIN_FALLBACK_STRINGS,
+        defaultStrings: BUILTIN_FALLBACK_STRINGS,
         currentLang: localStorage.getItem("tahara_userLang") || (['ar', 'fr', 'es', 'it'].includes(navigator.language.split('-')[0]) ? navigator.language.split('-')[0] : 'en'),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
         madhhab: localStorage.getItem("tahara_madhhab") || "hanafi",
@@ -21,7 +23,6 @@ import {FiqhRules} from './rules.js';
         dailyLogs: {},
         selectedDate: new Date(),
 
-        modalOpen: false,
         avgCycleLength: 0,
         avgHaydLength: 0,
 
@@ -29,12 +30,23 @@ import {FiqhRules} from './rules.js';
         vaultEnabled: localStorage.getItem("tahara_vault_enabled") === "true",
         isAwaitingIntent: false,
         vaultLocked: true,
-        lastActive: Date.now()
+        lastActive: Date.now(),
+        restoreAudit: (() => {
+            try {
+                const raw = localStorage.getItem("tahara_restore_audit");
+                const parsed = raw ? JSON.parse(raw) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
+        })()
     };
 
     window.App = App;
 
     const getRules = () => FiqhRules[App.madhhab].rules;
+
+    let cachedDescText = null;
 
     // E3: Local Error Logger
     const ErrorLog = {
@@ -380,7 +392,7 @@ import {FiqhRules} from './rules.js';
             setTimeout(() => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-            }, 150);
+            }, APP_TIMINGS.DOWNLOAD_CLEANUP_MS);
             return true;
         } catch (e) {
             console.error("Web export failed", e);
@@ -393,7 +405,8 @@ import {FiqhRules} from './rules.js';
             app_version: el("appVersion")?.innerText || "Unknown",
             platform: navigator.userAgent,
             language: App.currentLang,
-            error_history: ErrorLog.logs
+            error_history: ErrorLog.logs,
+            restore_audit: App.restoreAudit
         };
         const fileName = `tahara-diagnostics-${new Date().toISOString().split('T')[0]}.json`;
         const success = await window.safeDownloadJSON(diagnosticData, fileName);
@@ -412,7 +425,7 @@ import {FiqhRules} from './rules.js';
         const textClass = type === 'neutral' ? 'text-white dark:text-slate-900' : 'text-white';
 
         toast.className = `px-4 py-2 rounded-full shadow-lg text-xs font-bold tracking-wide animate-fade-in ${bgClass} ${textClass}`;
-        toast.innerText = S(messageKey, fallback); // SAFE FALLBACK ADDED
+        toast.textContent = S(messageKey, fallback);
 
         container.appendChild(toast);
 
@@ -420,8 +433,8 @@ import {FiqhRules} from './rules.js';
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(10px)';
             toast.style.transition = 'all 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+            setTimeout(() => toast.remove(), APP_TIMINGS.TOAST_FADE_MS);
+        }, APP_TIMINGS.TOAST_VISIBLE_MS);
     };
 
     let pendingImportData = null;
@@ -446,7 +459,7 @@ import {FiqhRules} from './rules.js';
         const announcerNode = el("sr-announcer");
         if (announcerNode) {
             announcerNode.innerText = ""; // Clear
-            setTimeout(() => announcerNode.innerText = msg, 50); // Force re-read
+            setTimeout(() => announcerNode.innerText = msg, APP_TIMINGS.ANNOUNCER_UPDATE_MS); // Force re-read
         }
     };
 
@@ -516,6 +529,17 @@ import {FiqhRules} from './rules.js';
         if (App.defaultStrings[key]) return App.defaultStrings[key];
         if (App.globalStrings && App.globalStrings[key]) return App.globalStrings[key];
         return fallback || "";
+    }
+
+    function formatImportLimit(bytes) {
+        return `${Math.round(bytes / (1024 * 1024))} MB`;
+    }
+
+    function updateImportLimitHint() {
+        const hint = el("importLimitHint");
+        if (!hint) return;
+        const template = S("import_limit_hint", "Max import size: %size%");
+        hint.innerText = template.replace("%size%", formatImportLimit(APP_LIMITS.MAX_BACKUP_IMPORT_BYTES));
     }
 
     function formatDateTime(isoString) {
@@ -745,16 +769,22 @@ import {FiqhRules} from './rules.js';
 
         if (haydCount < 2) {
             // Not enough data yet
-            const emptyMsg = `<span class="text-[10px] font-normal text-rose-400/70 dark:text-rose-300/60">${S("empty_averages")}</span>`;
-            if (el("avgCycleText")) el("avgCycleText").innerHTML = emptyMsg;
-            if (el("avgPurityText")) el("avgPurityText").innerHTML = emptyMsg.replace("text-rose-400/70", "text-amber-600/70").replace("dark:text-rose-300/60", "dark:text-amber-400/60");
+            const emptyAverages = S("empty_averages");
+            if (el("avgCycleText")) {
+                el("avgCycleText").textContent = emptyAverages;
+                el("avgCycleText").className = "text-[10px] font-normal text-rose-400/70 dark:text-rose-300/60";
+            }
+            if (el("avgPurityText")) {
+                el("avgPurityText").textContent = emptyAverages;
+                el("avgPurityText").className = "text-[10px] font-normal text-amber-600/70 dark:text-amber-400/60";
+            }
             if (el("nextPeriodText")) el("nextPeriodText").innerText = "--";
         } else {
             // We have data!
             if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
             if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
 
-            const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength, getRules());
+            const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
             if (predStart && el("nextPeriodText")) {
                 const dayMs = 86400000;
                 const rangeStart = new Date(predStart.getTime() - (2 * dayMs));
@@ -773,13 +803,17 @@ import {FiqhRules} from './rules.js';
         }
     }
     window.calculateStats = calculateStats;
+
     function updateContextMessage() {
-        const descText = document.querySelector("[data-i18n='status_desc']");
-        if (!descText) return;
+        if (!cachedDescText) cachedDescText = document.querySelector("[data-i18n='status_desc']");
+        if (!cachedDescText) return;
 
         if (App.history.length === 0) {
-            descText.innerText = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
-            descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
+            const welcomeMsg = S("msg_welcome", "Welcome to Tahara. Tap below to log your first change.");
+            if (cachedDescText.innerText !== welcomeMsg) {
+                cachedDescText.innerText = welcomeMsg;
+                cachedDescText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
+            }
             return;
         }
 
@@ -787,13 +821,16 @@ import {FiqhRules} from './rules.js';
         const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date(), getRules(), App.habitDays);
 
         // 2. Apply it to the DOM
-        descText.innerText = S(context.ruleKey);
-        descText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
+        const newMsg = S(context.ruleKey);
+        if (cachedDescText.innerText !== newMsg) {
+            cachedDescText.innerText = newMsg;
+            cachedDescText.classList.remove("text-amber-600", "text-rose-600", "font-bold");
 
-        if (context.isWarning) {
-            descText.classList.add("text-rose-600", "font-bold");
-        } else if (context.isAlert) {
-            descText.classList.add("text-amber-600", "font-bold");
+            if (context.isWarning) {
+                cachedDescText.classList.add("text-rose-600", "font-bold");
+            } else if (context.isAlert) {
+                cachedDescText.classList.add("text-amber-600", "font-bold");
+            }
         }
     }
 
@@ -819,14 +856,41 @@ import {FiqhRules} from './rules.js';
 
         calculateStats();
         App.history.sort((a, b) => new Date(b.time) - new Date(a.time));
-        grid.innerHTML = "";
+        grid.replaceChildren();
         monthLabel.innerText = calDate.toLocaleString(App.currentLang, {month: 'long', year: 'numeric'});
 
-        const daysAr = ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'];
-        const daysEn = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-        const days = App.currentLang === 'ar' ? daysAr : daysEn;
-        if (weekHeader) weekHeader.innerHTML = days.map(d => `<span class="text-[11px] text-slate-500 dark:text-slate-400 font-bold">${d}</span>`).join('');
-        if (legendContainer) legendContainer.innerHTML = `<div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-200 dark:bg-amber-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_purity", "Purity")}</span></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300 dark:bg-purple-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_change", "Change")}</span></div><div class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-200 dark:bg-rose-700"></span> <span class="text-slate-500 dark:text-slate-300 font-bold">${S("status_hayd", "Hayd")}</span></div>`;
+        const weekdaysStr = S("calendar_weekdays", "S,M,T,W,T,F,S");
+        const days = weekdaysStr.split(',');
+
+        if (weekHeader) {
+            weekHeader.replaceChildren();
+            const frag = document.createDocumentFragment();
+            days.forEach((d) => {
+                const span = document.createElement("span");
+                span.className = "text-[11px] text-slate-500 dark:text-slate-400 font-bold";
+                span.textContent = d;
+                frag.appendChild(span);
+            });
+            weekHeader.appendChild(frag);
+        }
+        if (legendContainer) {
+            legendContainer.replaceChildren();
+            const makeLegendItem = (dotClass, label) => {
+                const item = document.createElement("div");
+                item.className = "flex items-center gap-1";
+                const dot = document.createElement("span");
+                dot.className = `w-2 h-2 rounded-full ${dotClass}`;
+                const text = document.createElement("span");
+                text.className = "text-slate-500 dark:text-slate-300 font-bold";
+                text.textContent = label;
+                item.appendChild(dot);
+                item.appendChild(text);
+                return item;
+            };
+            legendContainer.appendChild(makeLegendItem("bg-amber-200 dark:bg-amber-700", S("status_purity", "Purity")));
+            legendContainer.appendChild(makeLegendItem("bg-purple-300 dark:bg-purple-700", S("status_change", "Change")));
+            legendContainer.appendChild(makeLegendItem("bg-rose-200 dark:bg-rose-700", S("status_hayd", "Hayd")));
+        }
 
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
@@ -842,7 +906,8 @@ import {FiqhRules} from './rules.js';
         // Prediction Window
         const {predStart, predEnd} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
 
-        for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div></div>`;
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < firstDay; i++) frag.appendChild(document.createElement("div"));
 
         for (let day = 1; day <= daysInMonth; day++) {
             const currentDayDate = new Date(year, month, day, 12, 0, 0);
@@ -861,8 +926,7 @@ import {FiqhRules} from './rules.js';
             if (predStart && currentDayDate >= predStart && currentDayDate <= predEnd && currentDayDate > now) isPredicted = true;
 
             let bgClass = "", textClass = "", borderClass = "";
-            let cursorClass = isFuture ? "cursor-default opacity-40" : "cursor-pointer";
-            let clickAttr = isFuture ? "" : `data-date="${dateKey}"`;
+            const cursorClass = isFuture ? "cursor-default opacity-40" : "cursor-pointer";
 
             if (isPredicted) {
                 bgClass = "bg-transparent";
@@ -885,15 +949,18 @@ import {FiqhRules} from './rules.js';
             if (isSelected) borderClass = "ring-2 ring-slate-400 dark:ring-slate-500 z-20 scale-105";
             if (isToday) borderClass = "ring-2 ring-amber-500 font-black z-30 scale-110";
 
-            let dot = "";
+            const dayEl = document.createElement("div");
+            dayEl.className = `relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${cursorClass} ${bgClass} ${textClass} ${borderClass}`;
+            dayEl.textContent = String(day);
+            if (!isFuture) dayEl.setAttribute("data-date", dateKey);
             if (App.dailyLogs[dateKey] && App.dailyLogs[dateKey].length > 0) {
-                dot = `<div class="absolute bottom-1 w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-400"></div>`;
+                const dot = document.createElement("div");
+                dot.className = "absolute bottom-1 w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-400";
+                dayEl.appendChild(dot);
             }
-
-            grid.innerHTML += `<div ${clickAttr} class="relative h-8 w-8 flex items-center justify-center text-[12px] rounded-full mx-auto mb-1 transition-all ${cursorClass} ${bgClass} ${textClass} ${borderClass}">
-                ${day} ${dot}
-            </div>`;
+            frag.appendChild(dayEl);
         }
+        grid.appendChild(frag);
     }
 
     window.selectDate = (dateStr) => {
@@ -932,12 +999,20 @@ import {FiqhRules} from './rules.js';
             const baseClass = "px-3 py-1.5 rounded-full text-[10px] font-bold transition-all border";
             const activeClass = "bg-rose-500 text-white border-rose-500 shadow-sm";
             const inactiveClass = "bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-white/10 hover:border-rose-300";
-            return `<button data-log="${key}" class="${baseClass} ${isActive ? activeClass : inactiveClass}">${S(key)}</button>`;
+            const btn = document.createElement("button");
+            btn.setAttribute("data-log", key);
+            btn.className = `${baseClass} ${isActive ? activeClass : inactiveClass}`;
+            btn.textContent = S(key);
+            return btn;
         };
-
-        moodsDiv.innerHTML = TAGS.moods.map(createTag).join('');
-        fiqhDiv.innerHTML = TAGS.fiqh.map(createTag).join('');
-        wellbeingDiv.innerHTML = TAGS.wellbeing.map(createTag).join('');
+        const renderTagGroup = (target, keys) => {
+            const frag = document.createDocumentFragment();
+            keys.forEach((k) => frag.appendChild(createTag(k)));
+            target.replaceChildren(frag);
+        };
+        renderTagGroup(moodsDiv, TAGS.moods);
+        renderTagGroup(fiqhDiv, TAGS.fiqh);
+        renderTagGroup(wellbeingDiv, TAGS.wellbeing);
     }
 
     // Advanced Exclusivity Logic
@@ -975,7 +1050,7 @@ import {FiqhRules} from './rules.js';
             const granted = await NotificationManager.requestPermission();
             if (!granted) {
                 e.target.checked = false;
-                alert(S("notif_denied", "Notification permission was denied."));
+                showToast("notif_denied", "error", "Notification permission was denied.");
                 return;
             }
             el("reminderTimeContainer").classList.remove("hidden");
@@ -997,7 +1072,7 @@ import {FiqhRules} from './rules.js';
                 const granted = await NotificationManager.requestPermission();
                 if (!granted) {
                     e.target.checked = false;
-                    alert(S("notif_denied", "Notification permission was denied."));
+                    showToast("notif_denied", "error", "Notification permission was denied.");
                     return;
                 }
             }
@@ -1019,26 +1094,50 @@ import {FiqhRules} from './rules.js';
         if (!fullList) return;
 
         if (App.history.length === 0) {
-            fullList.innerHTML = `<div class="text-center text-slate-400 text-sm py-12 italic">${S("no_history", "No history yet")}</div>`;
+            fullList.replaceChildren();
+            const empty = document.createElement("div");
+            empty.className = "text-center text-slate-400 text-sm py-12 italic";
+            empty.textContent = S("no_history", "No history yet");
+            fullList.appendChild(empty);
             return;
         }
 
-        fullList.innerHTML = App.history.map((entry, index) => {
+        const fragment = document.createDocumentFragment();
+        App.history.forEach((entry, index) => {
             const label = entry.status === 'hayd' ? S("status_hayd", "Hayd") : S("status_purity", "Purity");
             const color = entry.status === 'hayd' ? 'text-rose-600 dark:text-rose-200' : 'text-amber-700 dark:text-amber-100';
             const bgClass = entry.status === 'hayd' ? 'bg-rose-50 dark:bg-rose-900/10 border-rose-100 dark:border-rose-900/20' : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/20';
 
-            return `
-            <div class="p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group">
-                <div class="flex flex-col">
-                    <span class="text-sm font-bold ${color}">${label}</span>
-                    <span class="text-[10px] text-slate-400 font-medium">${formatDateTime(entry.time)}</span>
-                </div>
-                <button data-delete-index="${index}" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all">
-                    <span class="text-lg">🗑️</span>
-                </button>
-            </div>`;
-        }).join('');
+            const row = document.createElement("div");
+            row.className = `p-4 rounded-3xl ${bgClass} border flex justify-between items-center animate-fade-in mb-2 group`;
+
+            const left = document.createElement("div");
+            left.className = "flex flex-col";
+
+            const status = document.createElement("span");
+            status.className = `text-sm font-bold ${color}`;
+            status.textContent = label;
+            left.appendChild(status);
+
+            const when = document.createElement("span");
+            when.className = "text-[10px] text-slate-400 font-medium";
+            when.textContent = formatDateTime(entry.time);
+            left.appendChild(when);
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-100 dark:hover:bg-rose-900/40 text-slate-300 hover:text-rose-500 transition-all";
+            delBtn.setAttribute("data-delete-index", String(index));
+
+            const icon = document.createElement("span");
+            icon.className = "text-lg";
+            icon.textContent = "🗑️";
+            delBtn.appendChild(icon);
+
+            row.appendChild(left);
+            row.appendChild(delBtn);
+            fragment.appendChild(row);
+        });
+        fullList.replaceChildren(fragment);
     }
 
     async function deleteSpecificEntry(index) {
@@ -1094,7 +1193,7 @@ import {FiqhRules} from './rules.js';
                 if (!isHistoryVisible) {
                     historyTabBtn.classList.remove('text-rose-500');
                 }
-            }, 1000);
+            }, APP_TIMINGS.HISTORY_TAB_HIGHLIGHT_MS);
         }
     }
 
@@ -1207,19 +1306,27 @@ import {FiqhRules} from './rules.js';
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            if (file.size > APP_LIMITS.MAX_BACKUP_IMPORT_BYTES) {
+                addRestoreAudit("restore_rejected_too_large", {size: file.size, max: APP_LIMITS.MAX_BACKUP_IMPORT_BYTES});
+                showToast("import_too_large", "error", "Backup file is too large to import safely.");
+                pendingImportData = null;
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
                     // This parse will fail immediately if they select a photo or invalid file
                     const data = JSON.parse(event.target.result);
-
-                    if (!data.tahara_history || !Array.isArray(data.tahara_history)) throw new Error("Missing/Invalid history");
-                    if (!data.tahara_status) throw new Error("Missing status");
-
-                    pendingImportData = data;
-                    showRestorePreview(data);
+                    const normalized = normalizeBackupData(data);
+                    if (!normalized) {
+                        addRestoreAudit("restore_rejected_invalid_payload", {reason: "normalize_failed"});
+                        throw new Error("Invalid backup payload");
+                    }
+                    pendingImportData = normalized;
+                    showRestorePreview(normalized);
                 } catch (err) {
-                    alert(S("import_error", "Error: Invalid backup file. The data is corrupted or unsupported."));
+                    addRestoreAudit("restore_rejected_invalid_json", {reason: err?.message || "parse_failed"});
+                    showToast("import_error", "error", "Error: Invalid backup file. The data is corrupted or unsupported.");
                     pendingImportData = null;
                 }
             };
@@ -1229,25 +1336,61 @@ import {FiqhRules} from './rules.js';
     }
 
     window.showInfoModal = (titleKey, messageKey) => {
-        const modalHtml = `
-            <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customInfoModal" style="z-index: 99999;">
-                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
-                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">
-                    <div class="w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg">ℹ️</div>
-                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
-                    <button data-i18n-aria="aria_close" class="modal-close-btn w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">${S("btn_close", "Close")}</button>
-                </div>
-            </div>
-        `;
         const container = document.createElement("div");
-        container.innerHTML = modalHtml;
+        const modal = document.createElement("div");
+        modal.id = "customInfoModal";
+        modal.className = "fixed inset-0 flex items-center justify-center p-4 animate-fade-in";
+        modal.style.zIndex = "99999";
+
+        const backdrop = document.createElement("div");
+        backdrop.className = "absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop";
+        modal.appendChild(backdrop);
+
+        const card = document.createElement("div");
+        card.className = "relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center";
+
+        const icon = document.createElement("div");
+        icon.className = "w-10 h-10 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 text-lg";
+        icon.textContent = "ℹ️";
+        card.appendChild(icon);
+
+        const title = document.createElement("h3");
+        title.className = "text-lg font-bold text-slate-700 dark:text-slate-200 mb-2";
+        title.textContent = S(titleKey);
+        card.appendChild(title);
+
+        const message = document.createElement("p");
+        message.className = "text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed";
+        message.textContent = S(messageKey);
+        card.appendChild(message);
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "modal-close-btn w-full py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 active:scale-95 transition-transform";
+        closeBtn.setAttribute("data-i18n-aria", "aria_close");
+        closeBtn.textContent = S("btn_close", "Close");
+        card.appendChild(closeBtn);
+
+        modal.appendChild(card);
+        container.appendChild(modal);
         document.body.appendChild(container);
 
         // Bind events after adding to DOM
-        container.querySelector('.modal-backdrop').addEventListener('click', window.closeInfoModal);
-        container.querySelector('.modal-close-btn').addEventListener('click', window.closeInfoModal);
+        backdrop.addEventListener('click', window.closeInfoModal);
+        closeBtn.addEventListener('click', window.closeInfoModal);
     };
+
+    function addRestoreAudit(event, detail = {}) {
+        const entry = {time: new Date().toISOString(), event, detail};
+        App.restoreAudit.push(entry);
+        if (App.restoreAudit.length > APP_RETENTION.RESTORE_AUDIT_MAX_ENTRIES) {
+            App.restoreAudit = App.restoreAudit.slice(-APP_RETENTION.RESTORE_AUDIT_MAX_ENTRIES);
+        }
+        try {
+            localStorage.setItem("tahara_restore_audit", JSON.stringify(App.restoreAudit));
+        } catch (e) {
+            console.warn("Failed to persist restore audit", e);
+        }
+    }
 
     window.closeInfoModal = () => {
         const modal = document.getElementById("customInfoModal");
@@ -1257,28 +1400,57 @@ import {FiqhRules} from './rules.js';
     window.showConfirmModal = (titleKey, messageKey, confirmBtnKey, onConfirmCallback) => {
         if (el("customConfirmModal")) return;
 
-        const modalHtml = `
-            <div class="fixed inset-0 flex items-center justify-center p-4 animate-fade-in" id="customConfirmModal" style="z-index: 99999;">
-                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
-                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center">
-                    <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">⚠️</div>
-                    <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">${S(titleKey)}</h3>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">${S(messageKey)}</p>
-                    <div class="flex gap-2">
-                        <button data-i18n-aria="aria_close" class="modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">${S("btn_cancel", "Cancel")}</button>
-                        <button class="modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95">${S(confirmBtnKey)}</button>
-                    </div>
-                </div>
-            </div>
-        `;
         const container = document.createElement("div");
-        container.innerHTML = modalHtml;
+        const modal = document.createElement("div");
+        modal.id = "customConfirmModal";
+        modal.className = "fixed inset-0 flex items-center justify-center p-4 animate-fade-in";
+        modal.style.zIndex = "99999";
+
+        const backdrop = document.createElement("div");
+        backdrop.className = "absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop";
+        modal.appendChild(backdrop);
+
+        const card = document.createElement("div");
+        card.className = "relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl border border-rose-100 dark:border-rose-900/30 text-center";
+
+        const icon = document.createElement("div");
+        icon.className = "w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 text-xl";
+        icon.textContent = "⚠️";
+        card.appendChild(icon);
+
+        const title = document.createElement("h3");
+        title.className = "text-lg font-bold text-slate-700 dark:text-slate-200 mb-2";
+        title.textContent = S(titleKey);
+        card.appendChild(title);
+
+        const message = document.createElement("p");
+        message.className = "text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed";
+        message.textContent = S(messageKey);
+        card.appendChild(message);
+
+        const btnRow = document.createElement("div");
+        btnRow.className = "flex gap-2";
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors";
+        cancelBtn.setAttribute("data-i18n-aria", "aria_close");
+        cancelBtn.textContent = S("btn_cancel", "Cancel");
+        btnRow.appendChild(cancelBtn);
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30 transition-transform active:scale-95";
+        confirmBtn.textContent = S(confirmBtnKey);
+        btnRow.appendChild(confirmBtn);
+
+        card.appendChild(btnRow);
+        modal.appendChild(card);
+        container.appendChild(modal);
         document.body.appendChild(container);
 
         // Bind events
-        container.querySelector('.modal-backdrop').addEventListener('click', window.closeConfirmModal);
-        container.querySelector('.modal-cancel-btn').addEventListener('click', window.closeConfirmModal);
-        container.querySelector('.modal-confirm-btn').addEventListener('click', () => {
+        backdrop.addEventListener('click', window.closeConfirmModal);
+        cancelBtn.addEventListener('click', window.closeConfirmModal);
+        confirmBtn.addEventListener('click', () => {
             window.closeConfirmModal();
             onConfirmCallback();
         });
@@ -1289,53 +1461,87 @@ import {FiqhRules} from './rules.js';
         if (modal) modal.parentElement.remove();
     };
 
-    function showRestorePreview(data) {
-        const historyCount = data.tahara_history.length;
-        const logCount = Object.keys(data.tahara_logs || {}).length;
-        const date = data.export_date ? formatDateTime(data.export_date) : S("unknown_date", "Unknown Date");
-        const incomingVersion = data.schema_version || 1;
+    window.showRestorePreview = (data) => {
+        if (el("restorePreviewContainer")) return;
 
-        const previewHtml = `
-            <div class="fixed inset-0 flex items-center justify-center p-4" id="restorePreviewContainer" style="z-index: 99999;">
-                <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop"></div>
-                <div class="relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30">
-                    <h2 class="text-xl font-serif italic text-rose-500 mb-2">${S("preview_restore", "Preview Restore")}</h2>
-                    <p class="text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30">
-                        ⚠️ ${S("restore_warning", "Applying this will overwrite your current device data permanently.")}
-                    </p>
-                    <ul class="text-sm text-slate-600 dark:text-slate-300 space-y-2 mb-6 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5">
-                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">
-                            <span class="font-bold text-slate-400">${S("backup_date", "Backup Date:")}</span> 
-                            <span>${date}</span>
-                        </li>
-                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">
-                            <span class="font-bold text-slate-400">${S("history_entries", "History Entries:")}</span> 
-                            <span>${historyCount}</span>
-                        </li>
-                        <li class="flex justify-between border-b border-slate-200 dark:border-white/10 pb-1">
-                            <span class="font-bold text-slate-400">${S("daily_logs", "Daily Logs:")}</span> 
-                            <span>${logCount}</span>
-                        </li>
-                        <li class="flex justify-between pb-1">
-                            <span class="font-bold text-slate-400">${S("data_version", "Data Version:")}</span> 
-                            <span>v${incomingVersion}</span>
-                        </li>
-                    </ul>
-                    <div class="flex gap-3">
-                        <button class="modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5">${S("btn_cancel", "Cancel")}</button>
-                        <button class="modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30">${S("btn_confirm_restore", "Confirm Restore")}</button>
-                    </div>
-                </div>
-            </div>
-        `;
+        const normalized = normalizeBackupData(data);
+        if (!normalized) {
+            addRestoreAudit("restore_rejected_invalid_payload", {reason: "preview_normalize_failed"});
+            showToast("import_error", "error", "Invalid data format");
+            pendingImportData = null;
+            return;
+        }
+
+        pendingImportData = normalized;
+        const historyCount = normalized.tahara_history.length;
+        const logCount = Object.keys(normalized.tahara_logs || {}).length;
+        const date = normalized.export_date ? formatDateTime(normalized.export_date) : S("unknown_date", "Unknown Date");
+        const incomingVersion = normalized.schema_version || 1;
+
         const container = document.createElement("div");
-        container.innerHTML = previewHtml;
+        const modal = document.createElement("div");
+        modal.id = "restorePreviewContainer";
+        modal.className = "fixed inset-0 flex items-center justify-center p-4";
+        modal.style.zIndex = "99999";
+
+        const backdrop = document.createElement("div");
+        backdrop.className = "absolute inset-0 bg-slate-900/60 backdrop-blur-sm modal-backdrop";
+        modal.appendChild(backdrop);
+
+        const card = document.createElement("div");
+        card.className = "relative w-full max-w-sm bg-white dark:bg-[#1a1617] rounded-3xl p-6 shadow-2xl animate-fade-in border border-rose-100 dark:border-rose-900/30";
+
+        const title = document.createElement("h2");
+        title.className = "text-xl font-serif italic text-rose-500 mb-2";
+        title.textContent = S("preview_restore", "Preview Restore");
+        card.appendChild(title);
+
+        const warning = document.createElement("p");
+        warning.className = "text-xs text-rose-400 mb-4 bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg border border-rose-100 dark:border-rose-900/30";
+        warning.textContent = `⚠️ ${S("restore_warning", "Applying this will overwrite your current device data permanently.")}`;
+        card.appendChild(warning);
+
+        const statsList = document.createElement("ul");
+        statsList.className = "text-sm text-slate-600 dark:text-slate-300 space-y-2 mb-6 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5";
+        const makeStatRow = (label, value, isLast = false) => {
+            const row = document.createElement("li");
+            row.className = isLast ? "flex justify-between pb-1" : "flex justify-between border-b border-slate-200 dark:border-white/10 pb-1";
+            const left = document.createElement("span");
+            left.className = "font-bold text-slate-400";
+            left.textContent = label;
+            const right = document.createElement("span");
+            right.textContent = value;
+            row.appendChild(left);
+            row.appendChild(right);
+            return row;
+        };
+        statsList.appendChild(makeStatRow(S("backup_date", "Backup Date:"), date));
+        statsList.appendChild(makeStatRow(S("history_entries", "History Entries:"), String(historyCount)));
+        statsList.appendChild(makeStatRow(S("daily_logs", "Daily Logs:"), String(logCount)));
+        statsList.appendChild(makeStatRow(S("data_version", "Data Version:"), `v${incomingVersion}`, true));
+        card.appendChild(statsList);
+
+        const btnRow = document.createElement("div");
+        btnRow.className = "flex gap-3";
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "modal-cancel-btn flex-1 py-3 text-xs text-slate-500 font-bold uppercase rounded-full border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5";
+        cancelBtn.textContent = S("btn_cancel", "Cancel");
+        btnRow.appendChild(cancelBtn);
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.className = "modal-confirm-btn flex-1 py-3 text-xs text-white bg-rose-500 font-bold uppercase rounded-full shadow-lg shadow-rose-500/30";
+        confirmBtn.textContent = S("btn_confirm_restore", "Confirm Restore");
+        btnRow.appendChild(confirmBtn);
+
+        card.appendChild(btnRow);
+        modal.appendChild(card);
+        container.appendChild(modal);
         document.body.appendChild(container);
 
         // CSP Hardening: Bind events securely
-        container.querySelector('.modal-backdrop').addEventListener('click', window.cancelRestore);
-        container.querySelector('.modal-cancel-btn').addEventListener('click', window.cancelRestore);
-        container.querySelector('.modal-confirm-btn').addEventListener('click', window.confirmRestore);
+        backdrop.addEventListener('click', window.cancelRestore);
+        cancelBtn.addEventListener('click', window.cancelRestore);
+        confirmBtn.addEventListener('click', window.confirmRestore);
     }
 
     window.cancelRestore = () => {
@@ -1345,34 +1551,62 @@ import {FiqhRules} from './rules.js';
     };
 
     window.confirmRestore = async () => {
-        if (!pendingImportData) return;
+        console.log("Confirming restore...");
+        window.restoreComplete = false; // Reset flag at start
+        if (!pendingImportData) {
+            console.error("No pending import data");
+            return;
+        }
 
-        const d = pendingImportData;
-        const isValidStatus = ["purity", "hayd"].includes(d.tahara_status);
-        const hasHistory = Array.isArray(d.tahara_history);
-
-        if (!isValidStatus || !hasHistory) {
+        const d = normalizeBackupData(pendingImportData);
+        if (!d) {
+            addRestoreAudit("restore_rejected_invalid_payload", {reason: "confirm_normalize_failed"});
+            console.error("Invalid data format", d);
             showToast("import_error", "error", "Invalid data format");
             window.cancelRestore();
             return;
         }
 
-        App.status = pendingImportData.tahara_status;
-        App.lastChanged = pendingImportData.tahara_last_changed;
-        App.history = pendingImportData.tahara_history;
-        App.fasting = pendingImportData.tahara_fasting || {missed: 0, paid: 0};
-        App.dailyLogs = pendingImportData.tahara_logs || {};
+        try {
+            console.log("Writing to IndexedDB...");
+            // Persist all restored data directly to IndexedDB first
+            await TaharaDB.set(STORES.HISTORY, d.tahara_history);
+            await TaharaDB.set(STORES.FASTING, d.tahara_fasting || {missed: 0, paid: 0});
+            await TaharaDB.set(STORES.LOGS, d.tahara_logs || {});
+            await TaharaDB.set(STORES.STATUS, {status: d.tahara_status, lastChanged: d.tahara_last_changed});
 
-        // Save schema version of imported data (or 1 if old backup)
-        localStorage.setItem("tahara_schema_version", (pendingImportData.schema_version || 1).toString());
+            // Extra safety: wait for IndexedDB to breathe
+            await new Promise(r => setTimeout(r, APP_TIMINGS.RESTORE_DB_SETTLE_MS));
 
-        await saveState();
-        await saveFasting();
-        NotificationManager.scheduleFastingReminder();
-        await TaharaDB.set(STORES.LOGS, App.dailyLogs);
+            window.cancelRestore();
+            
+            console.log("Reloading data into App state...");
+            // Re-load EVERYTHING into memory from the DB we just wrote to
+            await runDataMigrations();
+            
+            // Explicitly force App status to match the loaded one
+            const statusData = await TaharaDB.get(STORES.STATUS);
+            if (statusData) {
+                App.status = statusData.status;
+                App.lastChanged = statusData.lastChanged;
+            }
 
-        window.cancelRestore();
-        location.reload(); // Reload to run migrations if an older version was imported
+            updateStatusUI();
+            renderCalendar();
+            renderFullInsights();
+            updateSettingsUI();
+            updateLiveCounter();
+            addRestoreAudit("restore_applied", {history: d.tahara_history.length, logs: Object.keys(d.tahara_logs || {}).length});
+            showToast("toast_backup_success", "success", "Data restored successfully");
+
+            console.log("Restore complete. Reloading for clean state...");
+            setTimeout(() => location.reload(), APP_TIMINGS.RESTORE_RELOAD_MS);
+        } catch (err) {
+            addRestoreAudit("restore_failed", {reason: err?.message || "unknown"});
+            console.error("Restore failed:", err);
+            showToast("import_error", "error", "Failed to restore database");
+            window.restoreComplete = true; // Still set to prevent timeout
+        }
     };
 
     function deleteLastEntry() {
@@ -1473,7 +1707,26 @@ import {FiqhRules} from './rules.js';
         if (platform === "ios") {
             iosText.classList.remove("hidden");
             const rawText = S("install_ios_desc", "Tap Share and Add to Home Screen");
-            iosText.innerHTML = rawText.replace("%share_icon%", '<span class="text-blue-500 text-base">⎋</span>').replace("%plus_icon%", '<span class="text-slate-700 dark:text-slate-300 font-bold text-base">⊞</span>');
+            iosText.replaceChildren();
+            const parts = rawText.split(/(%share_icon%|%plus_icon%)/g);
+            for (const part of parts) {
+                if (!part) continue;
+                if (part === "%share_icon%") {
+                    const shareIcon = document.createElement("span");
+                    shareIcon.className = "text-blue-500 text-base";
+                    shareIcon.textContent = "⎋";
+                    iosText.appendChild(shareIcon);
+                    continue;
+                }
+                if (part === "%plus_icon%") {
+                    const plusIcon = document.createElement("span");
+                    plusIcon.className = "text-slate-700 dark:text-slate-300 font-bold text-base";
+                    plusIcon.textContent = "⊞";
+                    iosText.appendChild(plusIcon);
+                    continue;
+                }
+                iosText.appendChild(document.createTextNode(part));
+            }
         } else {
             androidBtn.classList.remove("hidden");
             androidBtn.onclick = async () => {
@@ -1486,13 +1739,13 @@ import {FiqhRules} from './rules.js';
             };
         }
         banner.classList.remove("hidden");
-        setTimeout(() => banner.classList.remove("translate-y-20"), 100);
+        setTimeout(() => banner.classList.remove("translate-y-20"), APP_TIMINGS.INSTALL_BANNER_ANIMATE_MS);
     }
 
     window.dismissInstall = () => {
         const banner = el("installBanner");
         banner.classList.add("translate-y-20");
-        setTimeout(() => banner.classList.add("hidden"), 500);
+        setTimeout(() => banner.classList.add("hidden"), APP_TIMINGS.INSTALL_BANNER_HIDE_MS);
         localStorage.setItem("tahara_install_dismissed", new Date().toISOString());
     };
 
@@ -1568,7 +1821,7 @@ import {FiqhRules} from './rules.js';
         if (modal) {
             modal.classList.remove("hidden");
             // Tiny delay to allow display block to apply before animating opacity
-            setTimeout(() => modal.classList.remove("opacity-0"), 10);
+            setTimeout(() => modal.classList.remove("opacity-0"), APP_TIMINGS.ONBOARDING_FADE_IN_DELAY_MS);
         }
     };
 
@@ -1586,7 +1839,7 @@ import {FiqhRules} from './rules.js';
         const modal = el("onboardingModal");
         if (modal) {
             modal.classList.add("opacity-0");
-            setTimeout(() => modal.classList.add("hidden"), 500);
+            setTimeout(() => modal.classList.add("hidden"), APP_TIMINGS.ONBOARDING_HIDE_MS);
         }
     };
 
@@ -1625,6 +1878,9 @@ import {FiqhRules} from './rules.js';
         try {
             const res = await fetch("strings.json");
             const raw = await res.json();
+            if (!raw || typeof raw !== "object" || !raw.en || typeof raw.en !== "object") {
+                throw new Error("Invalid strings.json payload");
+            }
             App.globalStrings = raw['default'] || {};
 
             // Check URL for language param first
@@ -1635,10 +1891,15 @@ import {FiqhRules} from './rules.js';
                 localStorage.setItem("tahara_userLang", urlLang);
             }
 
-            App.uiStrings = raw[App.currentLang] || raw['en'];
+            App.uiStrings = (raw[App.currentLang] && typeof raw[App.currentLang] === "object")
+                ? raw[App.currentLang]
+                : raw['en'];
             App.defaultStrings = raw['en'];
         } catch (e) {
             console.error("Failed to load strings", e);
+            App.globalStrings = {};
+            App.uiStrings = BUILTIN_FALLBACK_STRINGS;
+            App.defaultStrings = BUILTIN_FALLBACK_STRINGS;
         } finally {
             requestAnimationFrame(() => {
                 document.documentElement.style.opacity = '1';
@@ -1673,6 +1934,7 @@ import {FiqhRules} from './rules.js';
                 const translation = S(key);
                 if (translation) node.setAttribute("aria-label", translation);
             });
+            updateImportLimitHint();
         };
         translateUI();
 
@@ -1840,7 +2102,7 @@ import {FiqhRules} from './rules.js';
             setInterval(() => {
                 updateLiveCounter();
                 NotificationManager.checkWebFallback();
-            }, 1000);
+            }, APP_TIMINGS.LIVE_COUNTER_INTERVAL_MS);
 
             await NotificationManager.init();
             initNativeFeatures();
@@ -1848,9 +2110,9 @@ import {FiqhRules} from './rules.js';
             checkVersion();
 
             // Wait a few seconds before prompting for install
-            setTimeout(checkInstall, 3000);
+            setTimeout(checkInstall, APP_TIMINGS.INSTALL_PROMPT_DELAY_MS);
 
-        }, 50); // Small 50ms delay lets the browser paint the UI first!
+        }, APP_TIMINGS.INIT_DEFERRED_MS); // Small delay lets the browser paint the UI first.
     }
 
     window.addEventListener('load', init);
@@ -1901,15 +2163,23 @@ import {FiqhRules} from './rules.js';
         toast.id = "update-toast";
 
         toast.className = "w-full max-w-sm p-4 rounded-2xl shadow-2xl flex justify-between items-center pointer-events-auto bg-white dark:bg-[#2d2426] text-slate-700 dark:text-rose-100 border border-slate-200 dark:border-white/10 animate-fade-in";
-        toast.innerHTML = `
-            <div class="flex flex-col">
-                <span class="text-[10px] uppercase tracking-widest opacity-70">${S("app_title", "Tahara")}</span>
-                <span class="text-xs font-bold">${S("update_available", "Update ready!")}</span>
-            </div>
-            <button id="execRefresh" class="bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all">
-                ${S("btn_refresh", "REFRESH")}
-            </button>
-        `;
+        const content = document.createElement("div");
+        content.className = "flex flex-col";
+        const appName = document.createElement("span");
+        appName.className = "text-[10px] uppercase tracking-widest opacity-70";
+        appName.textContent = S("app_title", "Tahara");
+        const updateLabel = document.createElement("span");
+        updateLabel.className = "text-xs font-bold";
+        updateLabel.textContent = S("update_available", "Update ready!");
+        content.appendChild(appName);
+        content.appendChild(updateLabel);
+        toast.appendChild(content);
+
+        const refreshBtn = document.createElement("button");
+        refreshBtn.id = "execRefresh";
+        refreshBtn.className = "bg-rose-500 hover:bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-black shadow-lg active:scale-95 transition-all";
+        refreshBtn.textContent = S("btn_refresh", "REFRESH");
+        toast.appendChild(refreshBtn);
         container.appendChild(toast);
 
         const btn = el("execRefresh");
@@ -1921,20 +2191,10 @@ import {FiqhRules} from './rules.js';
             if (worker) {
                 worker.postMessage({type: 'SKIP_WAITING'});
                 // Force reload if SW is stubborn
-                setTimeout(() => window.location.reload(), 1000);
+                setTimeout(() => window.location.reload(), APP_TIMINGS.SW_RELOAD_FALLBACK_MS);
             } else {
                 window.location.reload();
             }
         };
     }
-
-    window.activateUpdate = () => {
-        navigator.serviceWorker.getRegistration().then(reg => {
-            if (reg && reg.waiting) {
-                reg.waiting.postMessage({type: 'SKIP_WAITING'});
-            } else {
-                window.location.reload();
-            }
-        });
-    };
 })();

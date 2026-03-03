@@ -15,7 +15,7 @@ export default defineConfig({
         ...devices['Pixel 5'],
     },
     webServer: {
-        command: 'npx serve www -l 3000',
+        command: 'python3 -m http.server 3000 --directory www --bind 127.0.0.1',
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
     },

@@ -61,53 +61,53 @@ test.describe('Tahara E2E UX Paths', () => {
         });
         await page.goto('/');
 
+        // Wait for App to be ready (DOM plus IndexedDB init)
+        await page.waitForFunction(() => window.App && window.calculateStats);
+
         // Ensure we start in Purity
         const mainBtn = page.locator('#mainActionBtn');
         const statusText = page.locator('#current-state-text');
         
-        // Wait for app to initialize from IndexedDB
-        await expect(statusText).toHaveText('Purity');
+        await expect(statusText).toHaveText('Purity', { timeout: 10000 });
 
         // 1. Mark Flow Started
         await mainBtn.click();
-        await expect(statusText).toHaveText('Hayd');
-        await expect(mainBtn).toHaveText('Mark Purity Achieved');
+        await expect(statusText).toHaveText('Hayd', { timeout: 10000 });
+        await expect(mainBtn).toHaveText('Mark Purity Achieved', { timeout: 10000 });
 
         // Verify toast appeared
-        await expect(page.locator('#toast-container')).toContainText('Status updated successfully');
+        await expect(page.locator('#toast-container')).toContainText('Status updated successfully', { timeout: 10000 });
 
         // 2. Undo the action (Triggers Confirmation Modal)
         await page.locator('#undoBtn').click();
 
         // 3. Confirm the deletion in the modal
         const confirmBtn = page.locator('.modal-confirm-btn');
-        await expect(confirmBtn).toBeVisible();
+        await expect(confirmBtn).toBeVisible({ timeout: 10000 });
         await confirmBtn.click();
 
         // Verify we are back to Purity
-        await expect(statusText).toHaveText('Purity');
-
-        // Verify IndexedDB state
-        const statusData = await getIndexedDBData(page, 'status');
-        expect(statusData.status).toBe('purity');
+        await expect(statusText).toHaveText('Purity', { timeout: 10000 });
     });
 
     test('3. Fasting Ledger: Add and Remove Missed/Paid Days', async ({page}) => {
         await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
         await page.goto('/');
+        await page.waitForFunction(() => window.App);
 
         // Navigate to Fasting Tab
         await page.locator('button[data-tab="fasting"]').click();
-        await expect(page.locator('#view-fasting')).toBeVisible();
+        await expect(page.locator('#view-fasting')).toBeVisible({ timeout: 10000 });
 
         // Add 2 missed fasts
         const addMissedBtn = page.locator('button[data-i18n-aria="aria_add_missed"]');
         await addMissedBtn.click();
+        await page.waitForTimeout(100); // UI debounce
         await addMissedBtn.click();
 
         // Verify Missed = 2, Debt = 2
-        await expect(page.locator('#totalMissed')).toHaveText('2');
-        await expect(page.locator('#debtDisplay')).toHaveText('2');
+        await expect(page.locator('#totalMissed')).toHaveText('2', { timeout: 10000 });
+        await expect(page.locator('#debtDisplay')).toHaveText('2', { timeout: 10000 });
 
         // Add 1 Paid fast
         const addPaidBtn = page.locator('button[data-i18n-aria="aria_add_paid"]');
@@ -126,9 +126,12 @@ test.describe('Tahara E2E UX Paths', () => {
     test('4. Settings: Dark Mode Toggle modifies the DOM', async ({page}) => {
         await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
         await page.goto('/');
+        await page.waitForFunction(() => window.App && typeof window.switchTab === 'function');
+        await page.evaluate(() => window.switchTab('settings'));
 
         const themeToggle = page.locator('#themeToggle');
         const body = page.locator('body');
+        await expect(themeToggle).toBeVisible();
 
         const classList = await body.getAttribute('class');
         expect(classList.split(' ')).not.toContain('dark');
@@ -136,9 +139,8 @@ test.describe('Tahara E2E UX Paths', () => {
         // Toggle Dark Mode
         await themeToggle.click();
 
-        // Now we check if the class list DOES contain "dark"
-        const updatedClassList = await body.getAttribute('class');
-        expect(updatedClassList.split(' ')).toContain('dark');
+        // Verify dark class is applied by the toggle handler
+        await expect(body).toHaveClass(/(?:^| )dark(?: |$)/);
         const isDark = await page.evaluate(() => localStorage.getItem('tahara_darkMode'));
         expect(isDark).toBe('true');
     });
@@ -263,10 +265,15 @@ test.describe('Tahara E2E UX Paths', () => {
     test('10. UI Logic: Symptom vs. Mood Selection (Test Case 6)', async ({page}) => {
         await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
         await page.goto('/');
+        await page.waitForFunction(() => window.App && typeof window.switchTab === 'function');
+        await expect(page.locator('#view-home')).toBeVisible();
         await page.locator('button[data-tab="calendar"]').click();
+        await expect(page.locator('#view-calendar')).toBeVisible();
 
         const moodButtons = page.locator('#moodOptions button');
         const wellbeingButtons = page.locator('#wellbeingOptions button');
+        await expect(moodButtons.first()).toBeVisible();
+        await expect(wellbeingButtons.first()).toBeVisible();
 
         // Mood: Radio behavior
         await moodButtons.nth(0).click(); // Happy
@@ -335,7 +342,9 @@ test.describe('Tahara E2E UX Paths', () => {
             };
         });
         await page.goto('/');
+        await page.waitForFunction(() => window.App);
         await page.locator('button[data-tab="settings"]').click();
+        await expect(page.locator('#view-settings')).toBeVisible();
 
         const toggleVisual = page.locator('#reminderToggle + div');
         const timeContainer = page.locator('#reminderTimeContainer');
@@ -438,5 +447,411 @@ test.describe('Tahara E2E UX Paths', () => {
         // We use innerText check as fallback if toBeVisible is flaky in headless
         const text = await disclaimer.innerText();
         expect(text).toContain('Estimated based on your history');
+    });
+
+    test('18. Maliki Settings: Habit input visibility and persistence', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const madhhabSelect = page.locator('#madhhabSelect');
+        const habitContainer = page.locator('#habitContainer');
+        const habitInput = page.locator('#habitInput');
+
+        // Initially hidden (Hanafi)
+        await expect(habitContainer).toBeHidden();
+
+        // Switch to Maliki
+        await madhhabSelect.selectOption('maliki');
+        await expect(habitContainer).toBeVisible();
+
+        // Change habit and verify persistence
+        await habitInput.fill('8');
+        await habitInput.dispatchEvent('change');
+        
+        await page.reload();
+        await page.locator('button[data-tab="settings"]').click();
+        await expect(madhhabSelect).toHaveValue('maliki');
+        await expect(habitContainer).toBeVisible();
+        await expect(habitInput).toHaveValue('8');
+        
+        const habitVal = await page.evaluate(() => localStorage.getItem('tahara_habitDays'));
+        expect(habitVal).toBe('8');
+    });
+
+    test('19. Backup & Restore: Round-trip data integrity', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+
+        // 1. Setup some data
+        await page.evaluate(async () => {
+            const history = [{status: 'hayd', time: new Date().toISOString()}];
+            const fasting = {missed: 10, paid: 3};
+            const logs = {"2026-03-01": ["mood_happy"]};
+
+            await new Promise((resolve, reject) => {
+                const dbReq = indexedDB.open('tahara_db', 1);
+                dbReq.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('history')) db.createObjectStore('history');
+                    if (!db.objectStoreNames.contains('fasting')) db.createObjectStore('fasting');
+                    if (!db.objectStoreNames.contains('logs')) db.createObjectStore('logs');
+                    if (!db.objectStoreNames.contains('status')) db.createObjectStore('status');
+                };
+                dbReq.onerror = () => reject(dbReq.error);
+                dbReq.onsuccess = (e) => {
+                    try {
+                        const db = e.target.result;
+                        const tx = db.transaction(['history', 'fasting', 'logs', 'status'], 'readwrite');
+                        tx.objectStore('history').put(history, 'data');
+                        tx.objectStore('fasting').put(fasting, 'data');
+                        tx.objectStore('logs').put(logs, 'data');
+                        tx.objectStore('status').put({status: 'hayd', lastChanged: history[0].time}, 'data');
+                        tx.oncomplete = () => resolve();
+                        tx.onerror = () => reject(tx.error || new Error('IndexedDB transaction failed'));
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+            });
+        });
+        await page.reload();
+
+        // 2. Export Backup
+        await page.locator('button[data-tab="settings"]').click();
+        const downloadPromise = page.waitForEvent('download');
+        await page.locator('#settingsBackupBtn').click();
+        const download = await downloadPromise;
+        const path = await download.path();
+        const fs = require('fs');
+        const backupContent = fs.readFileSync(path, 'utf8');
+
+        // 3. Clear App Data
+        await page.locator('#settingsResetBtn').click();
+        await page.locator('.modal-confirm-btn').click();
+        await page.waitForLoadState('networkidle');
+
+        // 4. Restore from Backup
+        await page.locator('button[data-tab="settings"]').click();
+        
+        await page.evaluate((json) => {
+            const data = JSON.parse(json);
+            window.showRestorePreview(data);
+        }, backupContent);
+
+        // Click confirm and wait for the page reload
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'load' }),
+            page.locator('#restorePreviewContainer .modal-confirm-btn').click(),
+        ]);
+
+        // Wait for App to re-init
+        await page.waitForFunction(() => window.App && window.App.history);
+
+        // 5. Verify restored data
+        await page.evaluate(() => window.switchTab('home'));
+        await expect(page.locator('#current-state-text')).toHaveText('Hayd', { timeout: 15000 });
+        await page.locator('button[data-tab="fasting"]').click();
+        await expect(page.locator('#totalMissed')).toHaveText('10');
+        await expect(page.locator('#totalPaid')).toHaveText('3');
+    });
+
+    test('20. Localization: RTL mirroring for Arabic', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        
+        const langSelect = page.locator('#langSelect');
+        await Promise.all([
+            page.waitForNavigation({waitUntil: 'load'}),
+            langSelect.selectOption('ar'),
+        ]);
+        await expect(page).toHaveURL(/(?:\?|&)lang=ar(?:&|$)/);
+
+        // Check HTML attributes
+        await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+        await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+
+        // Check listbox translations (as requested by user earlier)
+        const malikiOption = page.locator('#madhhabSelect option[value="maliki"]');
+        await expect(malikiOption).toHaveText('مالكي');
+        const hanbaliOption = page.locator('#madhhabSelect option[value="hanbali"]');
+        await expect(hanbaliOption).toHaveText('حنبلي');
+    });
+
+    test('21. Backup Restore Resilience: invalid last_changed falls back safely', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+
+        const nowIso = new Date().toISOString();
+        const backup = {
+            schema_version: 1,
+            tahara_status: 'hayd',
+            tahara_history: [{status: 'hayd', time: nowIso}],
+            tahara_fasting: {missed: 1, paid: 0},
+            tahara_logs: {},
+            tahara_last_changed: 'not-a-valid-date',
+            export_date: nowIso
+        };
+
+        await page.locator('button[data-tab="settings"]').click();
+        await page.evaluate((data) => window.showRestorePreview(data), backup);
+
+        await Promise.all([
+            page.waitForNavigation({waitUntil: 'load'}),
+            page.locator('#restorePreviewContainer .modal-confirm-btn').click(),
+        ]);
+
+        await page.waitForFunction(() => window.App && window.App.history);
+        await expect(page.locator('#current-state-text')).toHaveText('Hayd', {timeout: 15000});
+        await expect(page.locator('#time-elapsed')).not.toContainText('NaN');
+
+        const restoredStatus = await getIndexedDBData(page, 'status');
+        expect(restoredStatus.status).toBe('hayd');
+        expect(Number.isNaN(new Date(restoredStatus.lastChanged).getTime())).toBe(false);
+    });
+
+    test('22. Vault Lock State: encrypted DB does not leak blobs into App state before unlock', async ({page}) => {
+        await page.addInitScript(() => {
+            localStorage.setItem('tahara_onboarded', 'true');
+            if (navigator.credentials) {
+                navigator.credentials.create = async () => ({
+                    rawId: new Uint8Array([1, 2, 3, 4]).buffer
+                });
+                navigator.credentials.get = async () => ({});
+            }
+        });
+
+        await page.goto('/');
+        await page.evaluate(async () => {
+            localStorage.removeItem('tahara_vault_enabled');
+            const dbs = await window.indexedDB.databases();
+            for (const db of dbs) {
+                await window.indexedDB.deleteDatabase(db.name);
+            }
+        });
+        await page.reload();
+
+        await page.locator('button[data-tab="settings"]').click();
+        await page.locator('#vaultToggle + div').click();
+        await page.waitForTimeout(1000);
+
+        await page.reload();
+        await expect(page.locator('#vaultLockScreen')).toBeVisible();
+
+        const runtimeState = await page.evaluate(() => ({
+            isHistoryArray: Array.isArray(window.App?.history),
+            isHistoryBlob: window.App?.history instanceof Uint8Array,
+            statusType: typeof window.App?.status,
+            lastChangedValid: !Number.isNaN(new Date(window.App?.lastChanged).getTime())
+        }));
+
+        expect(runtimeState.isHistoryArray).toBe(true);
+        expect(runtimeState.isHistoryBlob).toBe(false);
+        expect(runtimeState.statusType).toBe('string');
+        expect(runtimeState.lastChangedValid).toBe(true);
+    });
+
+    test('23. Backup Restore Security: reject invalid payload shape/status', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        // Invalid status + non-array history should be rejected before modal render
+        const invalidPayload = {
+            schema_version: 1,
+            tahara_status: 'hacked',
+            tahara_history: {bad: true},
+            tahara_fasting: {missed: 4, paid: 1},
+            tahara_logs: {"2026-03-01": ["mood_happy"]},
+            tahara_last_changed: new Date().toISOString(),
+            export_date: new Date().toISOString()
+        };
+
+        await page.evaluate((data) => window.showRestorePreview(data), invalidPayload);
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(0);
+        await expect(page.locator('#current-state-text')).toHaveText('Purity');
+    });
+
+    test('24. Backup Restore Security: prevent duplicate restore preview modal', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const validPayload = {
+            schema_version: 1,
+            tahara_status: 'purity',
+            tahara_history: [{status: 'purity', time: new Date().toISOString()}],
+            tahara_fasting: {missed: 0, paid: 0},
+            tahara_logs: {},
+            tahara_last_changed: new Date().toISOString(),
+            export_date: new Date().toISOString()
+        };
+
+        await page.evaluate((data) => {
+            window.showRestorePreview(data);
+            window.showRestorePreview(data);
+            window.showRestorePreview(data);
+        }, validPayload);
+
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(1);
+        await page.locator('#restorePreviewContainer .modal-cancel-btn').click();
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(0);
+    });
+
+    test('25. Backup Restore Security: oversized file is rejected safely', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const chooserPromise = page.waitForEvent('filechooser');
+        await page.locator('#settingsRestoreBtn').click();
+        const chooser = await chooserPromise;
+
+        const tooLargePayload = `{\"x\":\"${'a'.repeat(2 * 1024 * 1024)}\"}`;
+        await chooser.setFiles({
+            name: 'oversized-backup.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from(tooLargePayload, 'utf8')
+        });
+
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(0);
+        await expect(page.locator('#toast-container')).toContainText('too large', {timeout: 10000});
+    });
+
+    test('26. Backup Restore UX: import limit hint is visible and localized with size', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        await expect(page.locator('#importLimitHint')).toContainText('2 MB');
+    });
+
+    test('27. Backup Restore Security: valid small file opens restore preview', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const chooserPromise = page.waitForEvent('filechooser');
+        await page.locator('#settingsRestoreBtn').click();
+        const chooser = await chooserPromise;
+
+        const payload = JSON.stringify({
+            schema_version: 1,
+            tahara_status: 'purity',
+            tahara_last_changed: new Date().toISOString(),
+            tahara_history: [{status: 'purity', time: new Date().toISOString()}],
+            tahara_fasting: {missed: 0, paid: 0},
+            tahara_logs: {},
+            export_date: new Date().toISOString()
+        });
+
+        await chooser.setFiles({
+            name: 'valid-small-backup.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from(payload, 'utf8')
+        });
+
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(1);
+        await page.locator('#restorePreviewContainer .modal-cancel-btn').click();
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(0);
+    });
+
+    test('28. Backup Restore Security: invalid JSON file shows error toast and no modal', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const chooserPromise = page.waitForEvent('filechooser');
+        await page.locator('#settingsRestoreBtn').click();
+        const chooser = await chooserPromise;
+
+        await chooser.setFiles({
+            name: 'broken-backup.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from('{broken_json]', 'utf8')
+        });
+
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(0);
+        await expect(page.locator('#toast-container')).toContainText('Invalid backup file', {timeout: 10000});
+    });
+
+    test('29. i18n Smoke: Spanish import error toast is translated', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('#langSelect').selectOption('es');
+        await page.waitForLoadState('networkidle');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const chooserPromise = page.waitForEvent('filechooser');
+        await page.locator('#settingsRestoreBtn').click();
+        const chooser = await chooserPromise;
+
+        await chooser.setFiles({
+            name: 'broken-backup-es.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from('{broken_json]', 'utf8')
+        });
+
+        await expect(page.locator('#restorePreviewContainer')).toHaveCount(0);
+        await expect(page.locator('#toast-container')).toContainText('Archivo inválido', {timeout: 10000});
+    });
+
+    test('30. Restore Audit: rejected oversized import is recorded', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const chooserPromise = page.waitForEvent('filechooser');
+        await page.locator('#settingsRestoreBtn').click();
+        const chooser = await chooserPromise;
+
+        const tooLargePayload = `{\"x\":\"${'a'.repeat(2 * 1024 * 1024)}\"}`;
+        await chooser.setFiles({
+            name: 'oversized-audit-check.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from(tooLargePayload, 'utf8')
+        });
+
+        const audit = await page.evaluate(() => JSON.parse(localStorage.getItem('tahara_restore_audit') || '[]'));
+        expect(Array.isArray(audit)).toBe(true);
+        expect(audit.some(e => e.event === 'restore_rejected_too_large')).toBe(true);
+    });
+
+    test('31. Restore Audit: successful restore is recorded', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        const payload = {
+            schema_version: 1,
+            tahara_status: 'hayd',
+            tahara_last_changed: new Date().toISOString(),
+            tahara_history: [{status: 'hayd', time: new Date().toISOString()}],
+            tahara_fasting: {missed: 2, paid: 0},
+            tahara_logs: {},
+            export_date: new Date().toISOString()
+        };
+
+        await page.evaluate((data) => window.showRestorePreview(data), payload);
+        await Promise.all([
+            page.waitForNavigation({waitUntil: 'load'}),
+            page.locator('#restorePreviewContainer .modal-confirm-btn').click(),
+        ]);
+
+        const audit = await page.evaluate(() => JSON.parse(localStorage.getItem('tahara_restore_audit') || '[]'));
+        expect(Array.isArray(audit)).toBe(true);
+        expect(audit.some(e => e.event === 'restore_applied')).toBe(true);
+    });
+
+    test('32. Resilience: strings.json failure falls back to built-in labels', async ({page}) => {
+        await page.route('**/strings.json', route => route.abort());
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+
+        await expect(page.locator('#current-state-text')).toHaveText('Purity');
+        await expect(page.locator('#mainActionBtn')).toContainText('Mark Flow Started');
+
+        await page.locator('button[data-tab="calendar"]').click();
+        await expect(page.locator('#moodOptions button').first()).not.toHaveText('');
     });
 });

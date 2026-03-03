@@ -106,10 +106,12 @@
     "reminder_desc": "Get a local notification to log your daily wellness.",
     "notif_title": "Tahara Check-in",
     "notif_body": "Don't forget to log your mood and symptoms today.",
+    "notif_denied": "Notification permission was denied.",
     "tab_home": "Home",
     "tab_calendar": "Calendar",
     "tab_history": "History",
     "tab_settings": "Settings",
+    "calendar_weekdays": "S,M,T,W,T,F,S",
     "onb_skip": "Skip",
     "onb_next": "Next",
     "onb_start": "Get Started",
@@ -181,7 +183,10 @@
     "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
     "maliki_source": "Mukhtasar Khalil",
     "hanbali_source": "Zad al-Mustaqni",
-    "disclaimer_factual": "This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace the consultation of a qualified scholar or medical professional."
+    "disclaimer_factual": "This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace the consultation of a qualified scholar or medical professional.",
+    "app_version": "Version",
+    "import_too_large": "Backup file is too large to import safely.",
+    "import_limit_hint": "Max import size: %size%"
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -289,6 +294,7 @@
     "tab_calendar": "التقويم",
     "tab_history": "السجل",
     "tab_settings": "الإعدادات",
+    "calendar_weekdays": "ح,ن,ث,ر,خ,ج,س",
     "onb_skip": "تخطي",
     "onb_next": "التالي",
     "onb_start": "ابدأ الآن",
@@ -358,7 +364,10 @@
     "fiqh_source_label": "المرجع:",
     "hanafi_source": "مختصر القدوري",
     "shafi_source": "منهاج الطالبين (الإمام النووي)",
-    "disclaimer_factual": "يقوم هذا التطبيق بحساب الحالات بناءً على الحدود الحسابية المحددة في النصوص الكلاسيكية المذكورة. هو أداة تعليمية ولا يغني عن استشارة فقيه أو طبيب مختص."
+    "disclaimer_factual": "يقوم هذا التطبيق بحساب الحالات بناءً على الحدود الحسابية المحددة في النصوص الكلاسيكية المذكورة. هو أداة تعليمية ولا يغني عن استشارة فقيه أو طبيب مختص.",
+    "app_version": "الإصدار",
+    "import_too_large": "ملف النسخة الاحتياطية كبير جدًا ولا يمكن استيراده بأمان.",
+    "import_limit_hint": "الحد الأقصى لحجم الاستيراد: %size%"
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -536,7 +545,11 @@
     "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
     "maliki_source": "Mukhtasar Khalil",
     "hanbali_source": "Zad al-Mustaqni",
-    "disclaimer_factual": "Cette application calcule les états en fonction des limites mathématiques spécifiques définies dans les textes classiques cités. C'est un outil pédagogique qui ne remplace pas la consultation d'un savant qualifié ou d'un professionnel de santé."
+    "disclaimer_factual": "Cette application calcule les états en fonction des limites mathématiques spécifiques définies dans les textes classiques cités. C'est un outil pédagogique qui ne remplace pas la consultation d'un savant qualifié ou d'un professionnel de santé.",
+    "app_version": "Version",
+    "calendar_weekdays": "D,L,M,M,J,V,S",
+    "import_too_large": "Le fichier de sauvegarde est trop volumineux pour être importé en toute sécurité.",
+    "import_limit_hint": "Taille maximale d'importation : %size%"
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -711,7 +724,15 @@
     "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
     "maliki_source": "Mukhtasar Khalil",
     "hanbali_source": "Zad al-Mustaqni",
-    "disclaimer_factual": "Esta aplicación calcula los estados basándose en los límites matemáticos definidos en los textos clásicos citados. Es una herramienta educativa y no sustituye la consulta profesional."
+    "disclaimer_factual": "Esta aplicación calcula los estados basándose en los límites matemáticos definidos en los textos clásicos citados. Es una herramienta educativa y no sustituye la consulta profesional.",
+    "app_version": "Versión",
+    "calendar_weekdays": "D,L,M,X,J,V,S",
+    "habit_label": "Hábito menstrual",
+    "habit_desc": "Número de días de su periodo habitual (solo Maliki).",
+    "import_too_large": "El archivo de copia de seguridad es demasiado grande para importarlo con seguridad.",
+    "msg_hayd_warning_maliki": "Se alcanzó el límite de Hayd (hábito + 3 días). Después de eso, el flujo se considera Istihada.",
+    "msg_hayd_warning_hanbali": "Se alcanzó el límite de Hayd (15 días). Después de eso, el flujo se considera Istihada.",
+    "import_limit_hint": "Tamaño máximo de importación: %size%"
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -886,6 +907,14 @@
     "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
     "maliki_source": "Mukhtasar Khalil",
     "hanbali_source": "Zad al-Mustaqni",
-    "disclaimer_factual": "Questa applicazione calcola gli stati in base ai limiti matematici specifici definiti nei testi classici citati. È uno strumento educativo e non sostituisce la consulenza professionale."
+    "disclaimer_factual": "Questa applicazione calcola gli stati in base ai limiti matematici specifici definiti nei testi classici citati. È uno strumento educativo e non sostituisce la consulenza professionale.",
+    "app_version": "Versione",
+    "calendar_weekdays": "D,L,M,M,G,V,S",
+    "habit_label": "Abitudine mestruale",
+    "habit_desc": "Numero di giorni del periodo abituale (solo Maliki).",
+    "import_too_large": "Il file di backup è troppo grande per essere importato in sicurezza.",
+    "msg_hayd_warning_maliki": "Raggiunto il limite di Hayd (abitudine + 3 giorni). Dopo questo, il flusso è considerato Istihada.",
+    "msg_hayd_warning_hanbali": "Raggiunto il limite di Hayd (15 giorni). Dopo questo, il flusso è considerato Istihada.",
+    "import_limit_hint": "Dimensione massima di importazione: %size%"
   }
 }
