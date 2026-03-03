@@ -270,7 +270,17 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         async panicWipe() {
             showConfirmModal("vault_panic_btn", "clear_confirm", "clear_data", async () => {
                 // 1. Destroy IndexedDB
-                await TaharaDB.deleteDatabase();
+                let dbDeleted = false;
+                try {
+                    dbDeleted = await TaharaDB.deleteDatabase();
+                } catch (e) {
+                    dbDeleted = false;
+                }
+                if (!dbDeleted) {
+                    // Fallback path for blocked delete requests (e.g., stale open connection in another context).
+                    await TaharaDB.init();
+                    await TaharaDB.clearAll();
+                }
                 
                 // 2. Clear Secure Storage
                 if (window.Capacitor && window.Capacitor.isNativePlatform()) {

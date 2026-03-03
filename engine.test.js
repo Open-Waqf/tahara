@@ -36,6 +36,21 @@ describe('TaharaEngine.calculateAverages', () => {
         // Average Hayd = (7 + 5) / 2 = 6 days
         expect(result.avgHaydLengthMs).toBe(6 * DAY_MS);
     });
+
+    it('ignores duplicate consecutive statuses when computing averages', () => {
+        const DAY_MS = 86400000;
+        const history = [
+            {status: 'purity', time: new Date('2024-03-10T10:00:00Z').toISOString()},
+            {status: 'hayd', time: new Date('2024-03-05T10:00:00Z').toISOString()},
+            {status: 'hayd', time: new Date('2024-03-04T10:00:00Z').toISOString()},
+            {status: 'purity', time: new Date('2024-02-28T10:00:00Z').toISOString()},
+            {status: 'hayd', time: new Date('2024-02-20T10:00:00Z').toISOString()},
+        ];
+
+        const result = TaharaEngine.calculateAverages(history);
+        expect(result.avgCycleLengthMs).toBe(14 * DAY_MS);
+        expect(result.avgHaydLengthMs).toBe(6.5 * DAY_MS);
+    });
 });
 
 describe('TaharaEngine.predictNextCycle', () => {
