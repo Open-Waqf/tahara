@@ -60,7 +60,7 @@ jobs:
         run: |
           terser www/script.js --no-compress --no-mangle --format beautify=true,comments=false -o www/script.js
           terser www/sw.js --no-compress --no-mangle --format beautify=true,comments=false -o www/sw.js
-          cleancss --format beautify www/style.css -o www/style.css
+          cleancss --format beautify www/input.css -o www/input.css
 
       - name: Copy CNAME
         run: echo "tahara.open-waqf.org" > CNAME
