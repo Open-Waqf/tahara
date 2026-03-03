@@ -1,0 +1,124 @@
+[
+  {
+    "id": "vector_1",
+    "description": "Standard 11-day Hayd (exact ms), Hanafi warning check",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-12T10:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_hayd_warning_hanafi", "isWarning": true, "isAlert": false },
+      "shafi": { "ruleKey": "msg_hayd_generic", "isWarning": false, "isAlert": false }
+    }
+  },
+  {
+    "id": "vector_2",
+    "description": "Shafi'i warning at 16 days (exact ms)",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-17T10:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_hayd_warning_hanafi", "isWarning": true, "isAlert": false },
+      "shafi": { "ruleKey": "msg_hayd_warning_shafi", "isWarning": true, "isAlert": false }
+    }
+  },
+  {
+    "id": "vector_3",
+    "description": "Early hayd (1 day) context",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-02T10:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_hayd_early", "isWarning": false, "isAlert": false },
+      "shafi": { "ruleKey": "msg_hayd_early", "isWarning": false, "isAlert": false }
+    }
+  },
+  {
+    "id": "vector_4",
+    "description": "Purity day 0 context (morning)",
+    "history": [
+      { "status": "purity", "time": "2026-03-01T02:00:00.000Z" }
+    ],
+    "now": "2026-03-01T08:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_purity_day0_morning", "isAlert": true, "isWarning": false },
+      "shafi": { "ruleKey": "msg_purity_day0_morning", "isAlert": true, "isWarning": false }
+    }
+  },
+  {
+    "id": "vector_5",
+    "description": "Average calculation with truncation (Hanafi 10d vs Shafi 15d)",
+    "history": [
+      { "status": "purity", "time": "2026-03-20T10:00:00.000Z" },
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" },
+      { "status": "purity", "time": "2026-02-20T10:00:00.000Z" },
+      { "status": "hayd", "time": "2026-02-01T10:00:00.000Z" }
+    ],
+    "expected_averages": {
+      "hanafi": { "avgHaydLengthMs": 864000000 },
+      "shafi": { "avgHaydLengthMs": 1296000000 }
+    }
+  },
+  {
+    "id": "vector_6",
+    "description": "Hayd duration 5 days (exact ms), not early, not warning",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-06T11:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_hayd_generic", "isWarning": false, "isAlert": false },
+      "shafi": { "ruleKey": "msg_hayd_generic", "isWarning": false, "isAlert": false }
+    }
+  },
+  {
+    "id": "vector_7",
+    "description": "Purity day 5 context",
+    "history": [
+      { "status": "purity", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-06T10:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_purity_general", "isAlert": false, "isWarning": false },
+      "shafi": { "ruleKey": "msg_purity_general", "isAlert": false, "isWarning": false }
+    }
+  },
+  {
+    "id": "vector_8",
+    "description": "Exactly 10 days Hayd (ms match)",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-11T10:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_hayd_warning_hanafi", "isWarning": true, "isAlert": false },
+      "shafi": { "ruleKey": "msg_hayd_generic", "isWarning": false, "isAlert": false }
+    }
+  },
+  {
+    "id": "vector_9",
+    "description": "Exactly 15 days Hayd (ms match)",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-16T10:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_hayd_warning_hanafi", "isWarning": true, "isAlert": false },
+      "shafi": { "ruleKey": "msg_hayd_warning_shafi", "isWarning": true, "isAlert": false }
+    }
+  },
+  {
+    "id": "vector_10",
+    "description": "Purity day 0 context (afternoon)",
+    "history": [
+      { "status": "purity", "time": "2026-03-01T02:00:00.000Z" }
+    ],
+    "now": "2026-03-01T14:00:00.000Z",
+    "expected": {
+      "hanafi": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false },
+      "shafi": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false }
+    }
+  }
+]

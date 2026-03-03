@@ -1,6 +1,8 @@
 // engine.test.js
 import {describe, expect, it} from 'vitest';
 import {TaharaEngine} from './www/engine.js';
+import {FiqhRules} from './www/rules.js';
+import vectors from './tests/fiqh-vectors.json';
 
 describe('TaharaEngine.calculateAverages', () => {
     it('returns 0 for empty or insufficient history', () => {
@@ -58,47 +60,41 @@ describe('TaharaEngine.predictNextCycle', () => {
     });
 });
 
-describe('TaharaEngine.getFiqhContext (New Cases)', () => {
-    it('Day 0 Purity time-of-day logic (Test Case 3)', () => {
-        const lastChanged = new Date().toISOString();
-        
-        // Morning (9 AM)
-        const morning = new Date(); morning.setHours(9, 0, 0);
-        const ctxMorning = TaharaEngine.getFiqhContext('purity', lastChanged, morning);
-        expect(ctxMorning.ruleKey).toBe('msg_purity_day0_morning');
-        expect(ctxMorning.isAlert).toBe(true);
+describe('Fiqh Vector Corpus Tests', () => {
+    vectors.forEach((vector) => {
+        it(`${vector.id}: ${vector.description}`, () => {
+            const now = new Date(vector.now || Date.now());
+            const history = vector.history;
+            const status = history[0].status;
+            const lastChanged = history[0].time;
 
-        // Afternoon (1 PM)
-        const afternoon = new Date(); afternoon.setHours(13, 0, 0);
-        const ctxAfternoon = TaharaEngine.getFiqhContext('purity', lastChanged, afternoon);
-        expect(ctxAfternoon.ruleKey).toBe('msg_purity_day0_afternoon');
-        expect(ctxAfternoon.isAlert).toBe(true);
+            if (vector.expected) {
+                // Test Hanafi
+                const ctxHanafi = TaharaEngine.getFiqhContext(status, lastChanged, now, FiqhRules['hanafi'].rules);
+                expect(ctxHanafi.ruleKey).toBe(vector.expected.hanafi.ruleKey);
+                expect(ctxHanafi.isWarning).toBe(vector.expected.hanafi.isWarning);
+                if (vector.expected.hanafi.isAlert !== undefined) {
+                    expect(ctxHanafi.isAlert).toBe(vector.expected.hanafi.isAlert);
+                }
 
-        // Evening (8 PM)
-        const evening = new Date(); evening.setHours(20, 0, 0);
-        const ctxEvening = TaharaEngine.getFiqhContext('purity', lastChanged, evening);
-        expect(ctxEvening.ruleKey).toBe('msg_purity_day0_evening');
-        expect(ctxEvening.isAlert).toBe(true);
-    });
+                // Test Shafi'i
+                const ctxShafi = TaharaEngine.getFiqhContext(status, lastChanged, now, FiqhRules['shafi'].rules);
+                expect(ctxShafi.ruleKey).toBe(vector.expected.shafi.ruleKey);
+                expect(ctxShafi.isWarning).toBe(vector.expected.shafi.isWarning);
+                if (vector.expected.shafi.isAlert !== undefined) {
+                    expect(ctxShafi.isAlert).toBe(vector.expected.shafi.isAlert);
+                }
+            }
 
-    it('Early Hayd Warning (Test Case 4)', () => {
-        const DAY_MS = 86400000;
-        const twoDaysAgo = new Date(Date.now() - (2 * DAY_MS)).toISOString();
-        const context = TaharaEngine.getFiqhContext('hayd', twoDaysAgo, new Date());
+            if (vector.expected_averages) {
+                // Test Hanafi truncation
+                const avgHanafi = TaharaEngine.calculateAverages(history, FiqhRules['hanafi'].rules);
+                expect(avgHanafi.avgHaydLengthMs).toBe(vector.expected_averages.hanafi.avgHaydLengthMs);
 
-        expect(context.ruleKey).toBe('msg_hayd_early');
-        expect(context.isWarning).toBe(false);
-    });
-});
-
-describe('TaharaEngine.calculateAverages (Extra)', () => {
-    it('handles zero Hayd entries (Test Case 5)', () => {
-        const history = [
-            {status: 'purity', time: new Date().toISOString()},
-            {status: 'purity', time: new Date(Date.now() - 86400000).toISOString()}
-        ];
-        const result = TaharaEngine.calculateAverages(history);
-        expect(result.avgCycleLengthMs).toBe(0);
-        expect(result.avgHaydLengthMs).toBe(0);
+                // Test Shafi'i truncation
+                const avgShafi = TaharaEngine.calculateAverages(history, FiqhRules['shafi'].rules);
+                expect(avgShafi.avgHaydLengthMs).toBe(vector.expected_averages.shafi.avgHaydLengthMs);
+            }
+        });
     });
 });

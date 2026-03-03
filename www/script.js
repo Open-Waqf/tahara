@@ -1,6 +1,7 @@
 import {TaharaEngine} from './engine.js';
 import {TaharaDB, STORES} from './db.js';
 import {TaharaCrypto} from './crypto.js';
+import {FiqhRules} from './rules.js';
 
 (() => {
     // ==========================================
@@ -11,6 +12,7 @@ import {TaharaCrypto} from './crypto.js';
         defaultStrings: {},
         currentLang: localStorage.getItem("tahara_userLang") || (['ar', 'fr', 'es', 'it'].includes(navigator.language.split('-')[0]) ? navigator.language.split('-')[0] : 'en'),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
+        madhhab: localStorage.getItem("tahara_madhhab") || "hanafi",
         status: "purity",
         lastChanged: new Date().toISOString(),
         history: [],
@@ -28,6 +30,8 @@ import {TaharaCrypto} from './crypto.js';
         vaultLocked: true,
         lastActive: Date.now()
     };
+
+    const getRules = () => FiqhRules[App.madhhab].rules;
 
     // E3: Local Error Logger
     const ErrorLog = {
@@ -700,7 +704,7 @@ import {TaharaCrypto} from './crypto.js';
     // 3. CORE LOGIC (Stats & Context)
     // ==========================================
     function calculateStats() {
-        const {avgCycleLengthMs, avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history);
+        const {avgCycleLengthMs, avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history, getRules());
         App.avgCycleLength = avgCycleLengthMs;
         App.avgHaydLength = avgHaydLengthMs;
 
@@ -721,7 +725,7 @@ import {TaharaCrypto} from './crypto.js';
             if (el("avgCycleText")) el("avgCycleText").innerText = toDays(App.avgCycleLength);
             if (el("avgPurityText")) el("avgPurityText").innerText = toDays(App.avgCycleLength - App.avgHaydLength);
 
-            const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength);
+            const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength, getRules());
             if (predStart && el("nextPeriodText")) {
                 el("nextPeriodText").innerText = predStart.toLocaleDateString(App.currentLang, {
                     weekday: 'short', month: 'short', day: 'numeric'
@@ -743,7 +747,7 @@ import {TaharaCrypto} from './crypto.js';
         }
 
         // 1. Get the pure Fiqh context
-        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date());
+        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date(), getRules());
 
         // 2. Apply it to the DOM
         descText.innerText = S(context.ruleKey);
@@ -1624,11 +1628,15 @@ import {TaharaCrypto} from './crypto.js';
         const translateUI = () => {
             document.querySelectorAll("[data-i18n]").forEach(node => {
                 const key = node.getAttribute("data-i18n");
-                if (S(key)) node.innerText = S(key);
+                const translation = S(key);
+                if (translation && node.innerText !== translation) {
+                    node.innerText = translation;
+                }
             });
             document.querySelectorAll("[data-i18n-aria]").forEach(node => {
                 const key = node.getAttribute("data-i18n-aria");
-                if (S(key)) node.setAttribute("aria-label", S(key));
+                const translation = S(key);
+                if (translation) node.setAttribute("aria-label", translation);
             });
         };
         translateUI();
@@ -1739,6 +1747,20 @@ import {TaharaCrypto} from './crypto.js';
             
             const vaultPanicBtn = el("vaultPanicBtn");
             if (vaultPanicBtn) vaultPanicBtn.onclick = () => VaultManager.panicWipe();
+
+            // Madhhab Binding
+            const madhhabSelect = el("madhhabSelect");
+            if (madhhabSelect) {
+                madhhabSelect.value = App.madhhab;
+                madhhabSelect.onchange = (e) => {
+                    App.madhhab = e.target.value;
+                    localStorage.setItem("tahara_madhhab", App.madhhab);
+                    updateStatusUI();
+                    calculateStats();
+                    renderCalendar();
+                    showToast("toast_status_saved", "success", "Rules updated");
+                };
+            }
 
             // Bind Contact button
             const contactBtn = el("contactBtn");
