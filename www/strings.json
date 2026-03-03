@@ -167,7 +167,13 @@
     "vault_biometric_label": "Biometrics",
     "vault_pin_label": "PIN Code",
     "toast_vault_enabled": "Vault enabled",
-    "toast_vault_disabled": "Vault disabled"
+    "toast_vault_disabled": "Vault disabled",
+    "health_reference_title": "Health Guidelines Reference",
+    "health_reference_desc": "According to standard medical literature (e.g. WHO), typical menstrual cycles range from 21 to 35 days, with bleeding lasting 2 to 7 days. Patterns significantly outside these ranges are often noted by healthcare providers for further review.",
+    "fiqh_source_label": "Source:",
+    "hanafi_source": "Mukhtasar al-Quduri",
+    "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
+    "disclaimer_factual": "This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace the consultation of a qualified scholar or medical professional."
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -333,9 +339,12 @@
     "vault_pin_label": "الرمز السري",
     "toast_vault_enabled": "تم تفعيل الخزنة",
     "toast_vault_disabled": "تم تعطيل الخزنة",
-    "health_red_flags_title": "الوعي الصحي وعدم الانتظام",
-    "health_red_flags_desc": "بناءً على التوجيهات الطبية، قد تستدعي بعض الأنماط مثل دورة أقصر من 21 يومًا، أطول من 35 يومًا، أو نزيف يستمر أكثر من 10 أيام استشارة طبيب مختص.",
-    "health_disclaimer": "إخلاء مسؤولية: طهارة أداة تعليمية وليست جهازًا للتشخيص الطبي."
+    "health_reference_title": "مرجع الإرشادات الصحية",
+    "health_reference_desc": "وفقًا للمؤلفات الطبية القياسية (مثل منظمة الصحة العالمية)، تتراوح دورات الطمث المعتادة بين 21 و 35 يومًا، ويستمر النزيف من 2 إلى 7 أيام. غالبًا ما يلاحظ مقدمو الرعاية الصحية الأنماط التي تخرج عن هذه النطاقات بشكل كبير لمزيد من المراجعة.",
+    "fiqh_source_label": "المرجع:",
+    "hanafi_source": "مختصر القدوري",
+    "shafi_source": "منهاج الطالبين (الإمام النووي)",
+    "disclaimer_factual": "يقوم هذا التطبيق بحساب الحالات بناءً على الحدود الحسابية المحددة في النصوص الكلاسيكية المذكورة. هو أداة تعليمية ولا يغني عن استشارة فقيه أو طبيب مختص."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -499,7 +508,13 @@
     "vault_biometric_label": "Biométrie",
     "vault_pin_label": "Code PIN",
     "toast_vault_enabled": "Coffre activé",
-    "toast_vault_disabled": "Coffre désactivé"
+    "toast_vault_disabled": "Coffre désactivé",
+    "health_reference_title": "Référence des directives de santé",
+    "health_reference_desc": "Selon la littérature médicale standard (ex. OMS), les cycles menstruels typiques durent de 21 à 35 jours, avec des saignements de 2 à 7 jours. Les schémas s'écartant considérablement de ces plages sont souvent notés par les professionnels de santé pour un examen plus approfondi.",
+    "fiqh_source_label": "Source :",
+    "hanafi_source": "Mukhtasar al-Quduri",
+    "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
+    "disclaimer_factual": "Cette application calcule les états en fonction des limites mathématiques spécifiques définies dans les textes classiques cités. C'est un outil pédagogique qui ne remplace pas la consultation d'un savant qualifié ou d'un professionnel de santé."
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -664,7 +679,13 @@
     "vault_biometric_label": "Biometría",
     "vault_pin_label": "Código PIN",
     "toast_vault_enabled": "Bóveda activada",
-    "toast_vault_disabled": "Bóveda desactivada"
+    "toast_vault_disabled": "Bóveda desactivada",
+    "health_reference_title": "Referencia de guías de salud",
+    "health_reference_desc": "Según la literatura médica estándar (p. ej., la OMS), los ciclos menstruales típicos oscilan entre 21 y 35 días, con una hemorragia que dura de 2 à 7 días.",
+    "fiqh_source_label": "Fuente:",
+    "hanafi_source": "Mukhtasar al-Quduri",
+    "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
+    "disclaimer_factual": "Esta aplicación calcula los estados basándose en los límites matemáticos definidos en los textos clásicos citados. Es una herramienta educativa y no sustituye la consulta profesional."
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -829,6 +850,12 @@
     "vault_biometric_label": "Biometria",
     "vault_pin_label": "Codice PIN",
     "toast_vault_enabled": "Cassaforte attivata",
-    "toast_vault_disabled": "Cassaforte disattivata"
+    "toast_vault_disabled": "Cassaforte disattivata",
+    "health_reference_title": "Riferimento alle linee guida sanitarie",
+    "health_reference_desc": "Secondo la letteratura medica standard (es. OMS), i cicli mestruali tipici variano da 21 a 35 giorni, con sanguinamento che dura da 2 a 7 giorni.",
+    "fiqh_source_label": "Fonte:",
+    "hanafi_source": "Mukhtasar al-Quduri",
+    "shafi_source": "Minhaj al-Talibin (Imam al-Nawawi)",
+    "disclaimer_factual": "Questa applicazione calcola gli stati in base ai limiti matematici specifici definiti nei testi classici citati. È uno strumento educativo e non sostituisce la consulenza professionale."
   }
 }
