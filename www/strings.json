@@ -186,7 +186,10 @@
     "disclaimer_factual": "This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace the consultation of a qualified scholar or medical professional.",
     "app_version": "Version",
     "import_too_large": "Backup file is too large to import safely.",
-    "import_limit_hint": "Max import size: %size%"
+    "import_limit_hint": "Max import size: %size%",
+    "vault_native_hint": "Native app mode stores keys in secure device storage.",
+    "vault_web_warning": "Web mode keeps encrypted key material in browser storage on this device.",
+    "vault_recommend_native": "For strongest protection, use the native app with device biometrics enabled."
   },
   "ar": {
     "app_title": "طهارة - تطبيق متابعة الحيض والطهر",
@@ -367,7 +370,10 @@
     "disclaimer_factual": "يقوم هذا التطبيق بحساب الحالات بناءً على الحدود الحسابية المحددة في النصوص الكلاسيكية المذكورة. هو أداة تعليمية ولا يغني عن استشارة فقيه أو طبيب مختص.",
     "app_version": "الإصدار",
     "import_too_large": "ملف النسخة الاحتياطية كبير جدًا ولا يمكن استيراده بأمان.",
-    "import_limit_hint": "الحد الأقصى لحجم الاستيراد: %size%"
+    "import_limit_hint": "الحد الأقصى لحجم الاستيراد: %size%",
+    "vault_native_hint": "وضع التطبيق الأصلي يحفظ المفاتيح داخل التخزين الآمن للجهاز.",
+    "vault_web_warning": "وضع الويب يحفظ مواد المفاتيح المشفرة داخل تخزين المتصفح على هذا الجهاز.",
+    "vault_recommend_native": "لأقوى حماية، استخدمي التطبيق الأصلي مع تفعيل بصمة الجهاز."
   },
   "fr": {
     "app_title": "Tahara - Suivi de Pureté Islamique",
@@ -549,7 +555,10 @@
     "app_version": "Version",
     "calendar_weekdays": "D,L,M,M,J,V,S",
     "import_too_large": "Le fichier de sauvegarde est trop volumineux pour être importé en toute sécurité.",
-    "import_limit_hint": "Taille maximale d'importation : %size%"
+    "import_limit_hint": "Taille maximale d'importation : %size%",
+    "vault_native_hint": "Le mode natif stocke les clés dans le stockage sécurisé de l'appareil.",
+    "vault_web_warning": "Le mode Web conserve les éléments de clé chiffrés dans le stockage du navigateur sur cet appareil.",
+    "vault_recommend_native": "Pour une protection maximale, utilisez l'application native avec la biométrie activée."
   },
   "es": {
     "app_title": "Tahara - Rastreador de Pureza Islámica",
@@ -732,7 +741,10 @@
     "import_too_large": "El archivo de copia de seguridad es demasiado grande para importarlo con seguridad.",
     "msg_hayd_warning_maliki": "Se alcanzó el límite de Hayd (hábito + 3 días). Después de eso, el flujo se considera Istihada.",
     "msg_hayd_warning_hanbali": "Se alcanzó el límite de Hayd (15 días). Después de eso, el flujo se considera Istihada.",
-    "import_limit_hint": "Tamaño máximo de importación: %size%"
+    "import_limit_hint": "Tamaño máximo de importación: %size%",
+    "vault_native_hint": "El modo nativo guarda las claves en el almacenamiento seguro del dispositivo.",
+    "vault_web_warning": "El modo web guarda material de clave cifrado en el almacenamiento del navegador de este dispositivo.",
+    "vault_recommend_native": "Para mayor protección, use la app nativa con biometría del dispositivo activada."
   },
   "it": {
     "app_title": "Tahara - Tracker di Purezza Islamica",
@@ -915,6 +927,9 @@
     "import_too_large": "Il file di backup è troppo grande per essere importato in sicurezza.",
     "msg_hayd_warning_maliki": "Raggiunto il limite di Hayd (abitudine + 3 giorni). Dopo questo, il flusso è considerato Istihada.",
     "msg_hayd_warning_hanbali": "Raggiunto il limite di Hayd (15 giorni). Dopo questo, il flusso è considerato Istihada.",
-    "import_limit_hint": "Dimensione massima di importazione: %size%"
+    "import_limit_hint": "Dimensione massima di importazione: %size%",
+    "vault_native_hint": "La modalità nativa salva le chiavi nell'archiviazione sicura del dispositivo.",
+    "vault_web_warning": "La modalità web conserva materiale chiave cifrato nell'archiviazione del browser su questo dispositivo.",
+    "vault_recommend_native": "Per la massima protezione, usa l'app nativa con biometria del dispositivo attiva."
   }
 }

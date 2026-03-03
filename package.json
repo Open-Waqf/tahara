@@ -4,12 +4,13 @@
   "description": "Private Islamic Purity Tracker",
   "main": "index.js",
   "scripts": {
-    "dev": "npm run build:css && npx serve www",
+    "generate:sw-manifest": "node scripts/generate-sw-manifest.cjs",
+    "dev": "npm run generate:sw-manifest && npm run build:css && npx serve www",
     "build:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --minify",
     "watch:css": "tailwindcss -i ./www/input.css -o ./www/compiled.css --watch",
-    "build": "npm run build:css",
+    "build": "npm run generate:sw-manifest && npm run build:css",
     "size": "size-limit",
-    "test:unit": "vitest run engine.test.js backup.test.js db.test.js",
+    "test:unit": "npm run generate:sw-manifest && vitest run engine.test.js backup.test.js db.test.js sw-manifest.test.js",
     "test:e2e": "playwright test",
     "test:security": "vitest run backup.test.js db.test.js && playwright test -g \"Backup Restore Security|Backup Restore UX|Vault Lock State\"",
     "test": "npm run test:unit && npm run test:e2e"

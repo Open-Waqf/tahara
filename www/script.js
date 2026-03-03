@@ -45,6 +45,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
     window.App = App;
 
     const getRules = () => FiqhRules[App.madhhab].rules;
+    const isNativePlatform = () => !!(window.Capacitor && window.Capacitor.isNativePlatform());
 
     let cachedDescText = null;
 
@@ -467,6 +468,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
     // DATA SCHEMA & MIGRATIONS (A2)
     // ==========================================
     const CURRENT_SCHEMA_VERSION = 1;
+    const MIGRATION_VERIFIED_KEY = "tahara_migration_verified";
 
     async function runDataMigrations() {
         // Initialize TaharaDB first
@@ -482,6 +484,7 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
         // --- MIGRATION: localStorage -> IndexedDB ---
         if (hasExistingLocalStorage) {
             console.log("Migrating sensitive data to IndexedDB...");
+            let migrationVerified = false;
 
             try {
                 const history = JSON.parse(localStorage.getItem("tahara_history") || "[]");
@@ -494,19 +497,36 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
                 await TaharaDB.set(STORES.FASTING, (fasting && typeof fasting === 'object') ? fasting : {"missed": 0, "paid": 0});
                 await TaharaDB.set(STORES.LOGS, (logs && typeof logs === 'object') ? logs : {});
                 await TaharaDB.set(STORES.STATUS, {status, lastChanged});
+
+                // Verify what we just wrote before deleting legacy localStorage data.
+                const migratedHistory = await TaharaDB.get(STORES.HISTORY);
+                const migratedFasting = await TaharaDB.get(STORES.FASTING);
+                const migratedLogs = await TaharaDB.get(STORES.LOGS);
+                const migratedStatus = await TaharaDB.get(STORES.STATUS);
+
+                migrationVerified = Array.isArray(migratedHistory)
+                    && !!migratedFasting && typeof migratedFasting === 'object'
+                    && !!migratedLogs && typeof migratedLogs === 'object'
+                    && !!migratedStatus && typeof migratedStatus === 'object'
+                    && (migratedStatus.status === "purity" || migratedStatus.status === "hayd")
+                    && typeof migratedStatus.lastChanged === 'string';
             } catch (err) {
                 console.error("Migration parse error - some data may be lost:", err);
-                // We don't throw, we just proceed with whatever we can or defaults
+                migrationVerified = false;
             }
 
-            // Clean up localStorage - we do this even if parse failed to stop migration loop
-            localStorage.removeItem("tahara_history");
-            localStorage.removeItem("tahara_fasting");
-            localStorage.removeItem("tahara_logs");
-            localStorage.removeItem("tahara_status");
-            localStorage.removeItem("tahara_last_changed");
-
-            console.log("Migration complete.");
+            if (migrationVerified) {
+                localStorage.removeItem("tahara_history");
+                localStorage.removeItem("tahara_fasting");
+                localStorage.removeItem("tahara_logs");
+                localStorage.removeItem("tahara_status");
+                localStorage.removeItem("tahara_last_changed");
+                localStorage.setItem(MIGRATION_VERIFIED_KEY, "true");
+                console.log("Migration complete.");
+            } else {
+                localStorage.setItem(MIGRATION_VERIFIED_KEY, "failed");
+                console.error("Migration verification failed. Preserving legacy localStorage backup.");
+            }
         }
 
         // --- LOAD DATA FROM IndexedDB INTO APP STATE ---
@@ -596,6 +616,13 @@ import {APP_LIMITS, APP_RETENTION, APP_TIMINGS, BUILTIN_FALLBACK_STRINGS} from '
 
         const vaultToggle = el("vaultToggle");
         if (vaultToggle) vaultToggle.checked = App.vaultEnabled;
+        const vaultNativeHint = el("vaultNativeHint");
+        const vaultWebWarning = el("vaultWebWarning");
+        const vaultRecommendNative = el("vaultRecommendNative");
+        const nativeRuntime = isNativePlatform();
+        if (vaultNativeHint) vaultNativeHint.classList.toggle("hidden", !nativeRuntime);
+        if (vaultWebWarning) vaultWebWarning.classList.toggle("hidden", nativeRuntime);
+        if (vaultRecommendNative) vaultRecommendNative.classList.toggle("hidden", nativeRuntime);
 
         // Maliki Habit Input Visibility
         const habitContainer = el("habitContainer");

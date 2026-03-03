@@ -152,17 +152,13 @@ test.describe('Tahara E2E UX Paths', () => {
         const langSelect = page.locator('#langSelect');
 
         // Select Arabic
-        await langSelect.selectOption('ar');
-
-        // The app triggers location.reload(), so we wait for the page to finish loading
-        await page.waitForLoadState('networkidle');
-
-        // Verify HTML dir is RTL and Lang is AR
-        const htmlDir = await page.getAttribute('html', 'dir');
-        const htmlLang = await page.getAttribute('html', 'lang');
-
-        expect(htmlDir).toBe('rtl');
-        expect(htmlLang).toBe('ar');
+        await Promise.all([
+            page.waitForNavigation({waitUntil: 'load'}),
+            langSelect.selectOption('ar'),
+        ]);
+        await expect(page).toHaveURL(/(?:\?|&)lang=ar(?:&|$)/);
+        await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+        await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
 
         // Verify text is translated (Home tab button)
         await expect(page.locator('button[data-tab="home"]')).toContainText('الرئيسية');
@@ -215,6 +211,8 @@ test.describe('Tahara E2E UX Paths', () => {
         expect(keys).not.toContain('tahara_history');
         expect(keys).not.toContain('tahara_fasting');
         expect(keys).not.toContain('tahara_status');
+        const migrationVerified = await page.evaluate(() => localStorage.getItem('tahara_migration_verified'));
+        expect(migrationVerified).toBe('true');
 
         // 4. Verify data is in IndexedDB
         const fasting = await getIndexedDBData(page, 'fasting');
@@ -240,9 +238,11 @@ test.describe('Tahara E2E UX Paths', () => {
         // App should still load (fallback to purity if history is broken)
         await expect(page.locator('#current-state-text')).toBeVisible();
         
-        // localStorage should be cleared to prevent infinite migration loops
+        // Legacy backup should be preserved if migration verification fails.
         const history = await page.evaluate(() => localStorage.getItem('tahara_history'));
-        expect(history).toBeNull();
+        expect(history).toBe('{broken_json]');
+        const migrationVerified = await page.evaluate(() => localStorage.getItem('tahara_migration_verified'));
+        expect(migrationVerified).toBe('failed');
     });
 
     test('9. Security: Content Security Policy (CSP) blocks external fetch', async ({page}) => {
@@ -417,6 +417,16 @@ test.describe('Tahara E2E UX Paths', () => {
         // Verify Lock Screen is hidden
         await expect(page.locator('#vaultLockScreen')).toBeHidden();
         await expect(page.locator('#current-state-text')).toContainText('Purity');
+    });
+
+    test('16. Privacy Vault: Web runtime shows browser-storage advisory', async ({page}) => {
+        await page.addInitScript(() => localStorage.setItem('tahara_onboarded', 'true'));
+        await page.goto('/');
+        await page.locator('button[data-tab="settings"]').click();
+
+        await expect(page.locator('#vaultWebWarning')).toBeVisible();
+        await expect(page.locator('#vaultRecommendNative')).toBeVisible();
+        await expect(page.locator('#vaultNativeHint')).toBeHidden();
     });
 
     test('17. UI Logic: Prediction Range and Disclaimer', async ({page}) => {

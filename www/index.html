@@ -32,7 +32,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./img/apple-touch-icon.png">
     <link rel="manifest" href="./manifest.json">
     <link rel="stylesheet" href="./compiled.css">
-    <link rel="stylesheet" href="./style.css">
     <link rel="canonical" href="https://tahara.open-waqf.org/" id="canonicalUrl">
     <link rel="alternate" hreflang="x-default" href="https://tahara.open-waqf.org/">
     <link rel="alternate" hreflang="en" href="https://tahara.open-waqf.org/?lang=en">
@@ -304,6 +303,9 @@
                         <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
                     </label>
                 </div>
+                <p id="vaultNativeHint" class="text-[9px] text-emerald-500 mt-2 font-medium hidden" data-i18n="vault_native_hint">Native app mode stores keys in secure device storage.</p>
+                <p id="vaultWebWarning" class="text-[9px] text-amber-500 mt-2 font-medium hidden" data-i18n="vault_web_warning">Web mode keeps encrypted key material in browser storage on this device.</p>
+                <p id="vaultRecommendNative" class="text-[9px] text-slate-500 mt-2 hidden" data-i18n="vault_recommend_native">For strongest protection, use the native app with device biometrics enabled.</p>
                 <p class="text-[9px] text-rose-400 mt-2 font-medium" data-i18n="vault_warning"> Lost PINs cannot be recovered; data will be lost.</p>
             </div>
         </div>
