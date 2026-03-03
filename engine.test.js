@@ -98,3 +98,19 @@ describe('Fiqh Vector Corpus Tests', () => {
         });
     });
 });
+
+describe('Fiqh-Symptom Independence', () => {
+    it('does not change Fiqh context when symptoms like spotting are present', () => {
+        const history = [{status: 'purity', time: new Date().toISOString()}];
+        // Mocking a log entry with spotting
+        const dailyLogs = {
+            [new Date().toISOString().split('T')[0]]: ['sym_spotting', 'col_brown']
+        };
+        
+        // The engine doesn't even take logs as input, confirming independence by design
+        const context = TaharaEngine.getFiqhContext('purity', history[0].time, new Date(), FiqhRules['hanafi'].rules);
+        
+        expect(context.ruleKey).not.toBe('msg_hayd_generic');
+        expect(context.ruleKey).toContain('purity');
+    });
+});

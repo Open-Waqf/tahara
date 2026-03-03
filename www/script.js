@@ -420,9 +420,16 @@ import {FiqhRules} from './rules.js';
     let calDate = new Date();
 
     const TAGS = {
-        moods: ['mood_happy', 'mood_calm', 'mood_tired', 'mood_irritable', 'mood_sad'],
-        symptoms: ['sym_cramps', 'sym_headache', 'sym_bloating', 'sym_acne', 'sym_nausea']
+        moods: ['mood_happy', 'mood_calm', 'mood_irritable', 'mood_sad'],
+        fiqh: ['sym_spotting', 'col_white', 'col_yellow', 'col_brown', 'col_red', 'col_black'],
+        wellbeing: ['flow_light', 'flow_medium', 'flow_heavy', 'sym_pain', 'sym_fatigue', 'sym_sleep']
     };
+
+    const EXCLUSIVE_GROUPS = [
+        ['mood_happy', 'mood_calm', 'mood_irritable', 'mood_sad'],
+        ['col_white', 'col_yellow', 'col_brown', 'col_red', 'col_black'],
+        ['flow_light', 'flow_medium', 'flow_heavy']
+    ];
 
     // Accessibility: Announce to screen readers
     window.announce = (msg) => {
@@ -871,12 +878,13 @@ import {FiqhRules} from './rules.js';
         const container = el("dailyLogContainer");
         const dateText = el("selectedDateText");
         const moodsDiv = el("moodOptions");
-        const symDiv = el("symptomOptions");
-        if (!container) return;
+        const fiqhDiv = el("fiqhOptions");
+        const wellbeingDiv = el("wellbeingOptions");
+        if (!container || !moodsDiv || !fiqhDiv || !wellbeingDiv) return;
 
         const dateKey = getIsoDate(App.selectedDate);
 
-        // Hide log UI if future date selected (should not happen via click, but safe guard)
+        // Hide log UI if future date selected
         const todayKey = getIsoDate(new Date());
         if (dateKey > todayKey) {
             container.classList.add("hidden");
@@ -898,30 +906,27 @@ import {FiqhRules} from './rules.js';
         };
 
         moodsDiv.innerHTML = TAGS.moods.map(createTag).join('');
-        symDiv.innerHTML = TAGS.symptoms.map(createTag).join('');
+        fiqhDiv.innerHTML = TAGS.fiqh.map(createTag).join('');
+        wellbeingDiv.innerHTML = TAGS.wellbeing.map(createTag).join('');
     }
 
-    // FIX: Exclusive Moods Logic
+    // Advanced Exclusivity Logic
     window.toggleLog = async (tagKey) => {
         const dateKey = getIsoDate(App.selectedDate);
         if (!App.dailyLogs[dateKey]) App.dailyLogs[dateKey] = [];
 
-        const isMood = TAGS.moods.includes(tagKey);
+        const group = EXCLUSIVE_GROUPS.find(g => g.includes(tagKey));
 
-        if (isMood) {
-            // Check if this specific mood is already active
+        if (group) {
+            // Radio behavior for groups
             if (App.dailyLogs[dateKey].includes(tagKey)) {
-                // If yes, remove it (deselect)
-                const idx = App.dailyLogs[dateKey].indexOf(tagKey);
-                App.dailyLogs[dateKey].splice(idx, 1);
+                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => t !== tagKey);
             } else {
-                // If no, remove ALL other moods first (Radio behavior)
-                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => !TAGS.moods.includes(t));
-                // Then add the new one
+                App.dailyLogs[dateKey] = App.dailyLogs[dateKey].filter(t => !group.includes(t));
                 App.dailyLogs[dateKey].push(tagKey);
             }
         } else {
-            // For Symptoms: Toggle normally (Checkbox behavior)
+            // Checkbox behavior for others
             const idx = App.dailyLogs[dateKey].indexOf(tagKey);
             if (idx > -1) App.dailyLogs[dateKey].splice(idx, 1); else App.dailyLogs[dateKey].push(tagKey);
         }
@@ -1715,7 +1720,8 @@ import {FiqhRules} from './rules.js';
             if (btn) toggleLog(btn.getAttribute('data-log'));
         };
         if (el("moodOptions")) el("moodOptions").addEventListener('click', handleLogClick);
-        if (el("symptomOptions")) el("symptomOptions").addEventListener('click', handleLogClick);
+        if (el("fiqhOptions")) el("fiqhOptions").addEventListener('click', handleLogClick);
+        if (el("wellbeingOptions")) el("wellbeingOptions").addEventListener('click', handleLogClick);
 
         if (langSel) langSel.onchange = (e) => {
             const newLang = e.target.value;

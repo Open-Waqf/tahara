@@ -182,7 +182,7 @@ test.describe('Tahara E2E UX Paths', () => {
         await happyBtn.click();
 
         // Verify it got the active class (bg-rose-500)
-        await expect(happyBtn).toHaveClass(/bg-rose-500/);
+        await expect(happyBtn).toHaveClass(/.*bg-rose-500.*/);
 
         // Verify it saved to IndexedDB
         const logs = await getIndexedDBData(page, 'logs');
@@ -266,7 +266,7 @@ test.describe('Tahara E2E UX Paths', () => {
         await page.locator('button[data-tab="calendar"]').click();
 
         const moodButtons = page.locator('#moodOptions button');
-        const symptomButtons = page.locator('#symptomOptions button');
+        const wellbeingButtons = page.locator('#wellbeingOptions button');
 
         // Mood: Radio behavior
         await moodButtons.nth(0).click(); // Happy
@@ -274,11 +274,11 @@ test.describe('Tahara E2E UX Paths', () => {
         await expect(moodButtons.nth(0)).not.toHaveClass(/bg-rose-500/);
         await expect(moodButtons.nth(1)).toHaveClass(/bg-rose-500/);
 
-        // Symptoms: Checkbox behavior
-        await symptomButtons.nth(0).click(); // Cramps
-        await symptomButtons.nth(1).click(); // Headache
-        await expect(symptomButtons.nth(0)).toHaveClass(/bg-rose-500/);
-        await expect(symptomButtons.nth(1)).toHaveClass(/bg-rose-500/);
+        // Wellbeing: Checkbox behavior (Pain is index 3 in Wellbeing list)
+        await wellbeingButtons.nth(3).click(); // Pain
+        await wellbeingButtons.nth(4).click(); // Fatigue
+        await expect(wellbeingButtons.nth(3)).toHaveClass(/bg-rose-500/);
+        await expect(wellbeingButtons.nth(4)).toHaveClass(/bg-rose-500/);
     });
 
     test('11. UI Logic: Calendar Future Date Prevention (Test Case 7)', async ({page}) => {
