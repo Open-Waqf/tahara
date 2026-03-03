@@ -1,65 +1,56 @@
 # Tahara (طهارة) - Private Islamic Purity Tracker
 
-Tahara is a professional-grade, privacy-focused, offline-first Progressive Web App (PWA) designed to help Muslim women
-track their purity states (Hayd/Tuhr) and determine Salah/Fasting eligibility with precision and security.
+Tahara is a professional-grade, privacy-focused, offline-first Progressive Web App (PWA) designed to help Muslim women track their purity states (Hayd/Tuhr) and determine Salah/Fasting eligibility with precision and security.
+
+> This project is part of the **Open Waqf** umbrella (open-waqf.org). 
+> Global organization principles (Amanah, Universal Benefit, Offline-First) apply.
 
 ## 🌟 Key Features
 
-* **🔒 100% Private:** No cloud, no analytics, no servers. Your health data never leaves your device.
-* **⚖️ Fiqh-Aware Engine:** * **Logic-Based Detection:** Identifies **Istihadah** based on duration thresholds (e.g., 10
-  days Hanafi / 15 days Shafi'i).
-    * **Contextual Guidance:** Real-time advice based on current time and state (e.g., "Pray Zuhr & Asr before
-      Maghrib").
-* **🌙 Ramadan Ledger:** A dedicated tracker for missed fasts (Qada) and payment progress.
+* **🔒 100% Private:** No cloud, no analytics, no servers. Your health data stays in **IndexedDB** on your device.
+* **⚖️ Multi-Madhhab Fiqh Engine:**
+    * **Logic-Based Detection:** Supports **Hanafi, Shafi'i, Maliki, and Hanbali** rules.
+    * **Advanced Maliki Logic:** Implements *Istizhar* (Habit + 3 days) calculations based on user habit input.
+    * **Classical Sources:** Built upon authoritative texts including *Mukhtasar al-Quduri*, *Minhaj al-Talibin*, *Mukhtasar Khalil*, and *Zad al-Mustaqni*.
+* **🛡️ Privacy Vault:** Secure your data with native **Biometrics (FaceID/TouchID)** or a **PIN Code** (AES-256 encrypted).
+* **🌙 Ramadan Ledger:** A dedicated tracker for missed fasts (Qada) and payment progress with local reminders.
 * **📊 Cycle Insights:** Automated calculation of average cycle/hayd length and future cycle predictions.
-* **🗓️ Daily Health Logs:** Track moods and physical symptoms linked to your cycle.
-* **🛡️ Hardened Security:** Strict Content Security Policy (CSP), input validation, and secure JSON data migrations.
-* **🌍 Multi-lingual:** Full RTL support for Arabic, plus English, French, Spanish, and Italian.
+* **🌍 Multi-lingual & RTL:** Full RTL (Right-to-Left) UI mirroring for Arabic, plus English, French, Spanish, and Italian.
 
 ## 🛠️ Tech Stack
 
-* **Core:** Vanilla JavaScript (ES6+), HTML5, CSS3.
-* **Styling:** Tailwind CSS (via CDN/local build).
-* **Storage:** LocalStorage (Persistence).
-* **Platform:** Progressive Web App (PWA) + Capacitor (Android/iOS).
+* **Core:** Vanilla JavaScript (ES Modules), HTML5, CSS3 (No frameworks).
+* **Styling:** Tailwind CSS v4 (Minified).
+* **Storage:** **IndexedDB** (Sensitive data) + LocalStorage (Settings).
+* **Platform:** PWA + **Capacitor v8** (Native Android/iOS integration).
 
-## 🛠️ Technical Details
+## 📉 Low-Connectivity & Global Access Standards
 
-### Performance & Performance Budgets
+Tahara is engineered for high performance in resource-constrained environments:
+* **DIST-01:** Fully functional on **Android Go** devices (512MB RAM).
+* **DIST-02:** Total install size (PWA cache) is under **500 KB**. 
+* **DIST-03:** Support for **Direct APK Distribution** for markets without Google Play access.
+* **Performance Budget:** Strict **35kB JS** and **20kB CSS** limits per build.
 
-Tahara is optimized for low-end devices. We enforce a **35kB JS budget** and a **20kB CSS budget** via automated CI
-checks. Critical path rendering is prioritized, with heavy features lazy-loaded.
+## 🏗️ Architectural Pillars
 
-### Automated Testing
+* **Stateless Engine**: All calculations are "pure functions" in `engine.js`, making them independently auditable and testable.
+* **Data Amanah**: Strict schema migrations (`runDataMigrations`) ensure data integrity across app updates.
+* **Zero-Cloud Policy**: No external APIs, CDNs, or tracking scripts. All assets are local.
+* **Auditability**: Scholars and developers can verify the engine using the [Synthetic Test-Vector Corpus](VECTORS.md).
 
-* **Unit Tests (Vitest):** Core Fiqh logic and engine math are verified for accuracy.
-* **E2E Tests (Playwright):** Full user journeys (onboarding, logging, settings) are tested in real browser
-  environments.
+## 🧪 Documentation & Audit
 
-### Hardened Security
+For legal, religious, and technical governance, please refer to:
+* **[GOVERNANCE.md](GOVERNANCE.md):** Detailed Fiqh sources and calculation logic.
+* **[FIQH_CONTRIBUTORS.md](FIQH_CONTRIBUTORS.md):** Legal clarity on religious expertise and non-commercial use.
+* **[VECTORS.md](VECTORS.md):** Guide for auditing the mathematical engine against classical sources.
 
-Tahara implements a strict CSP that prohibits `unsafe-inline` scripts, protecting against XSS attacks. All data imports
-undergo a strict validation layer before being committed to storage.
-
-### Core Pillars
-
-* **State Management**: The App object is the single source of truth. On every change, we run saveState() which mirrors
-  the App object into localStorage.
-* **Fiqh Engine**: All calculations are "pure functions" located in engine.js. This makes the logic testable with Vitest
-  without needing a browser environment.
-* **UI Updates**: We use a "Render-on-Change" pattern. When data changes, we manually call functions like
-  updateStatusUI() or renderCalendar() to sync the DOM.
-* **Security Layer**: * CSP: A strict policy blocks all inline scripts.
-* **Validation**: Data imports are sanitized and type-checked.
-* **Privacy**: No external APIs or CDNs are used for data processing.
-
-## 🚀 Development & Build
+## 🚀 Development
 
 ### Prerequisites
-
-* A modern web browser (Chrome, Safari).
-* (Optional) Node.js & npm (for building the Android APK).
-
+* Node.js & npm (for build tools and native sync).
+* Android Studio (for APK generation).
 ### Installation (Web)
 
 1. Clone the repository.
@@ -72,46 +63,24 @@ undergo a strict validation layer before being committed to storage.
 2. Sync the web assets: `npx cap sync`
 3. Open Android Studio: `npx cap open android`
 4. Build -> Build Bundle(s) / APK(s) -> Build APK.
-
-### Build Styles (Tailwind v4)
-
+### Commands
 ```bash
-npm run build
-
+npm install        # Install dependencies
+npm run dev        # Tailwind watch & Dev server
+npm run build      # Production build (Minify CSS)
+npm run test:unit  # Run Vitest (Fiqh Engine tests)
+npm run test:e2e   # Run Playwright (UI workflows)
+npm run size       # Verify bundle size limits
 ```
 
-### Running Tests
-
-```bash
-npm run test:unit  # Run logic tests
-npm run test:e2e   # Run UI tests (requires Playwright)
-
-```
-
-## 📦 Distribution
-
-* **Web:** Hosted on GitHub Pages via the `deploy` branch.
-* **Android:** Capacitor-ready for native APK generation.
+### Building for Android
+1. `npm run build`
+2. `npx cap sync`
+3. `npx cap open android`
 
 ## 🔒 Privacy Policy
 
 **Tahara collects ZERO data.**
-
-* We do not use analytics.
-* We do not have a backend server.
-* Your health data is stored only in your browser's `LocalStorage`.
-* If you clear your browser cache, you lose your data (unless you use the **Backup** feature).
-
-### ✅ You Are Free To:
-
-* **Use** this software for personal or community purposes.
-* **Modify** the source code.
-* **Distribute** your own versions (forks), even if you keep the source code closed.
-
-### ❌ You May NOT:
-
-* **Sell** this software or any derivative works.
-* **Place Advertisements** inside the app.
-* **Use** this software for any commercial business purpose.
+All health data is stored in your device's **IndexedDB**. If you clear your browser cache, you lose your data (unless you use the **Backup/JSON Export** feature).
 
 *Built with ❤️ for the Ummah.*
