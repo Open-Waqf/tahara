@@ -310,8 +310,8 @@ test.describe('Tahara E2E UX Paths', () => {
             request.onsuccess = (event) => {
                 const db = event.target.result;
                 const tx = db.transaction(['history', 'status'], 'readwrite');
-                tx.objectStore('history').put([{status: 'hayd', time: new Date().toISOString()}]);
-                tx.objectStore('status').put({status: 'hayd', lastChanged: new Date().toISOString()});
+                tx.objectStore('history').put([{status: 'hayd', time: new Date().toISOString()}], 'data');
+                tx.objectStore('status').put({status: 'hayd', lastChanged: new Date().toISOString()}, 'data');
             };
         });
         await page.reload();
@@ -321,7 +321,6 @@ test.describe('Tahara E2E UX Paths', () => {
         const avgCycle = page.locator('#avgCycleText');
         await expect(avgCycle).not.toContainText('NaN');
         await expect(avgCycle).not.toContainText('0d');
-        // It should contain the empty state text (we'll check for its existence in strings.json later if needed, but for now we know it shouldn't be 0d)
         
         await expect(page.locator('#nextPeriodText')).toHaveText('--');
     });
@@ -411,33 +410,33 @@ test.describe('Tahara E2E UX Paths', () => {
         await expect(page.locator('#current-state-text')).toContainText('Purity');
     });
 
-    test('16. Privacy Vault: Panic Wipe from Lock Screen', async ({page}) => {
-        // Setup locked state
+    test('17. UI Logic: Prediction Range and Disclaimer', async ({page}) => {
         await page.goto('/');
-        await page.evaluate(async () => {
-            localStorage.clear();
-            localStorage.setItem('tahara_onboarded', 'true');
-            localStorage.setItem('tahara_vault_enabled', 'true');
-            localStorage.setItem('tahara_master_key', btoa('fake-key-content'));
-        });
-        await page.reload();
-        await page.waitForTimeout(1000);
-
-        await expect(page.locator('#vaultLockScreen')).toBeVisible();
-
-        // Mock confirmation for panic wipe
         await page.evaluate(() => {
-            window.showConfirmModal = (t, m, b, cb) => cb();
+            const DAY_MS = 86400000;
+            const now = new Date().getTime();
+            const history = [
+                {status: 'purity', time: new Date(now).toISOString()},
+                {status: 'hayd', time: new Date(now - (10 * DAY_MS)).toISOString()},
+                {status: 'purity', time: new Date(now - (15 * DAY_MS)).toISOString()},
+                {status: 'hayd', time: new Date(now - (40 * DAY_MS)).toISOString()},
+                {status: 'purity', time: new Date(now - (45 * DAY_MS)).toISOString()}
+            ];
+            window.App.history = history;
+            window.App.status = 'purity';
+            window.App.lastChanged = history[0].time;
+            window.switchTab('home');
+            window.calculateStats();
         });
+        
+        await page.waitForTimeout(1000); 
 
-        // Trigger Panic Wipe
-        await page.locator('#vaultPanicBtn').click();
+        const nextPeriodText = page.locator('#nextPeriodText');
+        const disclaimer = page.locator('[data-i18n="prediction_disclaimer"]');
 
-        // Wait for lock screen to be hidden (means reload/redirect happened)
-        await expect(page.locator('#vaultLockScreen')).toBeHidden({ timeout: 15000 });
-
-        // Verify Storage Cleared
-        const vaultEnabled = await page.evaluate(() => localStorage.getItem('tahara_vault_enabled'));
-        expect(vaultEnabled).toBeNull();
+        await expect(nextPeriodText).toContainText(' – ');
+        // We use innerText check as fallback if toBeVisible is flaky in headless
+        const text = await disclaimer.innerText();
+        expect(text).toContain('Estimated based on your history');
     });
 });

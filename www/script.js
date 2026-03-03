@@ -31,6 +31,8 @@ import {FiqhRules} from './rules.js';
         lastActive: Date.now()
     };
 
+    window.App = App;
+
     const getRules = () => FiqhRules[App.madhhab].rules;
 
     // E3: Local Error Logger
@@ -734,15 +736,23 @@ import {FiqhRules} from './rules.js';
 
             const {predStart} = TaharaEngine.predictNextCycle(App.history, App.avgCycleLength, App.avgHaydLength, getRules());
             if (predStart && el("nextPeriodText")) {
-                el("nextPeriodText").innerText = predStart.toLocaleDateString(App.currentLang, {
-                    weekday: 'short', month: 'short', day: 'numeric'
-                });
+                const dayMs = 86400000;
+                const rangeStart = new Date(predStart.getTime() - (2 * dayMs));
+                const rangeEnd = new Date(predStart.getTime() + (2 * dayMs));
+
+                const fmt = { month: 'short', day: 'numeric' };
+                const rangeStr = `${rangeStart.toLocaleDateString(App.currentLang, fmt)} – ${rangeEnd.toLocaleDateString(App.currentLang, fmt)}`;
+
+                el("nextPeriodText").innerText = rangeStr;
+
+                // Accessibility
+                window.announce(`${S("next_period")}: ${rangeStr}. ${S("prediction_disclaimer")}`);
             } else {
                 if (el("nextPeriodText")) el("nextPeriodText").innerText = "--";
             }
         }
     }
-
+    window.calculateStats = calculateStats;
     function updateContextMessage() {
         const descText = document.querySelector("[data-i18n='status_desc']");
         if (!descText) return;
