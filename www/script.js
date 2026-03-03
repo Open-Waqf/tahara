@@ -13,6 +13,7 @@ import {FiqhRules} from './rules.js';
         currentLang: localStorage.getItem("tahara_userLang") || (['ar', 'fr', 'es', 'it'].includes(navigator.language.split('-')[0]) ? navigator.language.split('-')[0] : 'en'),
         isDark: localStorage.getItem("tahara_darkMode") === "true",
         madhhab: localStorage.getItem("tahara_madhhab") || "hanafi",
+        habitDays: parseInt(localStorage.getItem("tahara_habitDays")) || 6,
         status: "purity",
         lastChanged: new Date().toISOString(),
         history: [],
@@ -572,6 +573,18 @@ import {FiqhRules} from './rules.js';
         const vaultToggle = el("vaultToggle");
         if (vaultToggle) vaultToggle.checked = App.vaultEnabled;
 
+        // Maliki Habit Input Visibility
+        const habitContainer = el("habitContainer");
+        const habitInput = el("habitInput");
+        if (habitContainer && habitInput) {
+            if (App.madhhab === "maliki") {
+                habitContainer.classList.remove("hidden");
+                habitInput.value = App.habitDays;
+            } else {
+                habitContainer.classList.add("hidden");
+            }
+        }
+
         // Set Warning Sign for Backup
         const lastBackupStr = localStorage.getItem("tahara_last_backup");
         let needsBackup = false;
@@ -720,7 +733,7 @@ import {FiqhRules} from './rules.js';
     // 3. CORE LOGIC (Stats & Context)
     // ==========================================
     function calculateStats() {
-        const {avgCycleLengthMs, avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history, getRules());
+        const {avgCycleLengthMs, avgHaydLengthMs} = TaharaEngine.calculateAverages(App.history, getRules(), App.habitDays);
         App.avgCycleLength = avgCycleLengthMs;
         App.avgHaydLength = avgHaydLengthMs;
 
@@ -771,7 +784,7 @@ import {FiqhRules} from './rules.js';
         }
 
         // 1. Get the pure Fiqh context
-        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date(), getRules());
+        const context = TaharaEngine.getFiqhContext(App.status, App.lastChanged, new Date(), getRules(), App.habitDays);
 
         // 2. Apply it to the DOM
         descText.innerText = S(context.ruleKey);
@@ -1778,10 +1791,23 @@ import {FiqhRules} from './rules.js';
                 madhhabSelect.onchange = (e) => {
                     App.madhhab = e.target.value;
                     localStorage.setItem("tahara_madhhab", App.madhhab);
+                    updateSettingsUI();
                     updateStatusUI();
                     calculateStats();
                     renderCalendar();
                     showToast("toast_status_saved", "success", "Rules updated");
+                };
+            }
+
+            // Maliki Habit Binding
+            const habitInput = el("habitInput");
+            if (habitInput) {
+                habitInput.onchange = (e) => {
+                    App.habitDays = parseInt(e.target.value) || 6;
+                    localStorage.setItem("tahara_habitDays", App.habitDays);
+                    calculateStats();
+                    updateStatusUI();
+                    showToast("toast_status_saved", "success", "Habit updated");
                 };
             }
 

@@ -10,9 +10,10 @@ export const TaharaEngine = {
      * Truncates invalid entries based on maxHaydMs from rules.
      * @param {Array} history - Array of {status, time} objects sorted newest first
      * @param {Object} rules - Rule schema object
+     * @param {number} habitDays - User's menstrual habit in days (for Maliki logic)
      * @returns {Object} { avgCycleLengthMs, avgHaydLengthMs }
      */
-    calculateAverages: (history, rules = null) => {
+    calculateAverages: (history, rules = null, habitDays = 0) => {
         if (!history || history.length < 2) return {avgCycleLengthMs: 0, avgHaydLengthMs: 0};
 
         const haydStarts = history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
@@ -26,14 +27,21 @@ export const TaharaEngine = {
             avgCycleLengthMs = totalCycleMs / (haydStarts.length - 1);
         }
 
+        // Determine effective max hayd for truncation
+        let effectiveMaxMs = rules?.maxHaydMs || (15 * 24 * 60 * 60 * 1000);
+        if (habitDays > 0 && rules?.dynamicMaxHayd) {
+            // Maliki: Habit + 3 days, max 15
+            effectiveMaxMs = Math.min(15 * 24 * 60 * 60 * 1000, (habitDays + 3) * 24 * 60 * 60 * 1000);
+        }
+
         let totalHaydMs = 0, haydCount = 0;
         for (let i = 0; i < history.length - 1; i++) {
             if (history[i + 1].status === 'hayd' && history[i].status === 'purity') {
                 let duration = (new Date(history[i].time) - new Date(history[i + 1].time));
                 
                 // Truncate invalid history entries based on rules
-                if (rules && rules.maxHaydMs && duration > rules.maxHaydMs) {
-                    duration = rules.maxHaydMs;
+                if (duration > effectiveMaxMs) {
+                    duration = effectiveMaxMs;
                 }
                 
                 totalHaydMs += duration;
@@ -51,9 +59,10 @@ export const TaharaEngine = {
      * @param {Date|string} lastChanged - Time of last state change
      * @param {Date} now - Current time
      * @param {Object} rules - Rule schema object
+     * @param {number} habitDays - User's menstrual habit in days (for Maliki logic)
      * @returns {Object} { ruleKey, isWarning, isAlert, days }
      */
-    getFiqhContext: (status, lastChanged, now, rules = null) => {
+    getFiqhContext: (status, lastChanged, now, rules = null, habitDays = 0) => {
         const lastDate = new Date(lastChanged);
         
         // Exact millisecond difference for rule durations
@@ -80,11 +89,17 @@ export const TaharaEngine = {
                 ruleKey = "msg_purity_general";
             }
         } else {
-            // AC 2: Use dynamic rules instead of hardcoded values
-            if (rules && rules.maxHaydMs && msDiff >= rules.maxHaydMs) {
-                ruleKey = rules.warningKey || "msg_hayd_generic";
+            // Determine effective max hayd
+            let effectiveMaxMs = rules?.maxHaydMs || (15 * 24 * 60 * 60 * 1000);
+            if (habitDays > 0 && rules?.dynamicMaxHayd) {
+                // Maliki: Habit + 3 days (Istizhar), absolute max 15
+                effectiveMaxMs = Math.min(15 * 24 * 60 * 60 * 1000, (habitDays + 3) * 24 * 60 * 60 * 1000);
+            }
+
+            if (msDiff >= effectiveMaxMs) {
+                ruleKey = rules?.warningKey || "msg_hayd_generic";
                 isWarning = true;
-            } else if (rules && rules.minHaydMs && msDiff <= rules.minHaydMs) {
+            } else if (rules && rules.minHaydMs > 0 && msDiff <= rules.minHaydMs) {
                 ruleKey = "msg_hayd_early";
             } else {
                 ruleKey = "msg_hayd_generic";

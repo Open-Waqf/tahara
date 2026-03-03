@@ -69,31 +69,27 @@ describe('Fiqh Vector Corpus Tests', () => {
             const lastChanged = history[0].time;
 
             if (vector.expected) {
-                // Test Hanafi
-                const ctxHanafi = TaharaEngine.getFiqhContext(status, lastChanged, now, FiqhRules['hanafi'].rules);
-                expect(ctxHanafi.ruleKey).toBe(vector.expected.hanafi.ruleKey);
-                expect(ctxHanafi.isWarning).toBe(vector.expected.hanafi.isWarning);
-                if (vector.expected.hanafi.isAlert !== undefined) {
-                    expect(ctxHanafi.isAlert).toBe(vector.expected.hanafi.isAlert);
-                }
-
-                // Test Shafi'i
-                const ctxShafi = TaharaEngine.getFiqhContext(status, lastChanged, now, FiqhRules['shafi'].rules);
-                expect(ctxShafi.ruleKey).toBe(vector.expected.shafi.ruleKey);
-                expect(ctxShafi.isWarning).toBe(vector.expected.shafi.isWarning);
-                if (vector.expected.shafi.isAlert !== undefined) {
-                    expect(ctxShafi.isAlert).toBe(vector.expected.shafi.isAlert);
-                }
+                Object.keys(vector.expected).forEach(madhhab => {
+                    const rules = FiqhRules[madhhab].rules;
+                    const habitDays = vector.habitDays || 6;
+                    const ctx = TaharaEngine.getFiqhContext(status, lastChanged, now, rules, habitDays);
+                    
+                    expect(ctx.ruleKey, `Madhhab: ${madhhab}`).toBe(vector.expected[madhhab].ruleKey);
+                    expect(ctx.isWarning, `Madhhab: ${madhhab}`).toBe(vector.expected[madhhab].isWarning);
+                    
+                    if (vector.expected[madhhab].isAlert !== undefined) {
+                        expect(ctx.isAlert, `Madhhab: ${madhhab}`).toBe(vector.expected[madhhab].isAlert);
+                    }
+                });
             }
 
             if (vector.expected_averages) {
-                // Test Hanafi truncation
-                const avgHanafi = TaharaEngine.calculateAverages(history, FiqhRules['hanafi'].rules);
-                expect(avgHanafi.avgHaydLengthMs).toBe(vector.expected_averages.hanafi.avgHaydLengthMs);
-
-                // Test Shafi'i truncation
-                const avgShafi = TaharaEngine.calculateAverages(history, FiqhRules['shafi'].rules);
-                expect(avgShafi.avgHaydLengthMs).toBe(vector.expected_averages.shafi.avgHaydLengthMs);
+                Object.keys(vector.expected_averages).forEach(madhhab => {
+                    const rules = FiqhRules[madhhab].rules;
+                    const habitDays = vector.habitDays || 6;
+                    const avg = TaharaEngine.calculateAverages(history, rules, habitDays);
+                    expect(avg.avgHaydLengthMs, `Madhhab: ${madhhab}`).toBe(vector.expected_averages[madhhab].avgHaydLengthMs);
+                });
             }
         });
     });

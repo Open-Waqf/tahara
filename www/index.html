@@ -153,25 +153,23 @@
             <div id="wellbeingOptions" class="flex flex-wrap gap-2"></div>
         </div>
     </div>
+<div id="view-history" class="view-section hidden animate-fade-in">
+    <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="tab_history">History</h2>
+    <div id="fullHistoryList" class="space-y-3 mb-8"></div>
 
-    <div id="view-history" class="view-section hidden animate-fade-in">
-        <h2 class="text-xl font-serif italic text-rose-500 mb-6 text-center" data-i18n="tab_history">History</h2>
-        <div id="fullHistoryList" class="space-y-3 mb-8"></div>
-
-        <!-- Educational Reference Section -->
-        <div class="bg-rose-50 dark:bg-rose-900/10 p-5 rounded-3xl border border-rose-100 dark:border-rose-900/20 mt-10 text-center">
-            <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 mb-3 uppercase tracking-widest" data-i18n="health_reference_title">Health Guidelines Reference</h3>
-            <p class="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-i18n="health_reference_desc">
-                According to standard medical literature (e.g. WHO), typical menstrual cycles range from 21 to 35 days, with bleeding lasting 2 to 7 days.
-            </p>
-            <p class="text-[9px] text-rose-400/80 font-medium italic" data-i18n="disclaimer_factual">
-                This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace professional consultation.
-            </p>
-        </div>
+    <!-- Educational Reference Section -->
+    <div class="bg-rose-50 dark:bg-rose-900/10 p-5 rounded-3xl border border-rose-100 dark:border-rose-900/20 mt-10 text-center">
+        <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 mb-3 uppercase tracking-widest" data-i18n="health_reference_title">Health Guidelines Reference</h3>
+        <p class="text-[10px] text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-i18n="health_reference_desc">
+            According to standard medical literature (e.g. WHO), typical menstrual cycles range from 21 to 35 days, with bleeding lasting 2 to 7 days.
+        </p>
+        <p class="text-[9px] text-rose-400/80 font-medium italic" data-i18n="disclaimer_factual">
+            This application calculates states based on the specific mathematical limits defined in cited classical texts. It is an educational tool and does not replace professional consultation.
+        </p>
     </div>
+</div>
 
-    <div id="view-fasting"
-         class="view-section hidden animate-fade-in flex flex-col items-center justify-center min-h-[60vh]">
+<div id="view-fasting"         class="view-section hidden animate-fade-in flex flex-col items-center justify-center min-h-[60vh]">
         <h2 class="text-xl font-serif italic text-amber-500 mb-2 text-center" data-i18n="tab_fasting">Fasting</h2>
         <span class="block text-xs uppercase tracking-widest text-slate-400 font-bold mb-8 text-center"
               data-i18n="fasting_title">Ramadan Ledger</span>
@@ -239,7 +237,19 @@
                             class="bg-white dark:bg-[#1a1617] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-rose-400">
                         <option value="hanafi" data-i18n="madhhab_hanafi">Hanafi</option>
                         <option value="shafi" data-i18n="madhhab_shafi">Shafi'i</option>
+                        <option value="maliki" data-i18n="madhhab_maliki">Maliki</option>
+                        <option value="hanbali" data-i18n="madhhab_hanbali">Hanbali</option>
                     </select>
+                </div>
+                <div id="habitContainer" class="mt-4 pt-4 border-t border-slate-200 dark:border-white/10 hidden">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-200 block" data-i18n="habit_label">Menstrual Habit</span>
+                            <span class="text-[10px] text-slate-400" data-i18n="habit_desc">Typical days of bleeding.</span>
+                        </div>
+                        <input type="number" id="habitInput" min="1" max="15" placeholder="6"
+                               class="w-16 bg-white dark:bg-[#1a1617] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm font-bold outline-none focus:border-rose-400">
+                    </div>
                 </div>
             </div>
         </div>

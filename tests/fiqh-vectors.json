@@ -118,7 +118,32 @@
     "now": "2026-03-01T14:00:00.000Z",
     "expected": {
       "hanafi": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false },
-      "shafi": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false }
+      "shafi": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false },
+      "maliki": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false },
+      "hanbali": { "ruleKey": "msg_purity_day0_afternoon", "isAlert": true, "isWarning": false }
+    }
+  },
+  {
+    "id": "vector_maliki_habit",
+    "description": "Maliki Habit + 3 logic (Habit 5, Day 9 should be Istihada)",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "habitDays": 5,
+    "now": "2026-03-10T10:00:00.000Z",
+    "expected": {
+      "maliki": { "ruleKey": "msg_hayd_warning_maliki", "isAlert": false, "isWarning": true }
+    }
+  },
+  {
+    "id": "vector_hanbali_15days",
+    "description": "Hanbali 15-day limit check",
+    "history": [
+      { "status": "hayd", "time": "2026-03-01T10:00:00.000Z" }
+    ],
+    "now": "2026-03-17T10:00:00.000Z",
+    "expected": {
+      "hanbali": { "ruleKey": "msg_hayd_warning_hanbali", "isAlert": false, "isWarning": true }
     }
   }
 ]
