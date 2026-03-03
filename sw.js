@@ -1,6 +1,16 @@
-const CACHE_NAME = "tahara-v2";
+let CACHE_NAME = "tahara-v2";
 
-const ASSETS = [ "./", "./index.html", "./style.css", "./script.js", "./compiled.css", "./strings.json", "manifest.json", "./fonts/amiri-v30-arabic_latin-700.woff2", "./fonts/amiri-v30-arabic_latin-regular.woff2", "./img/favicon.ico", "./img/favicon.svg", "./img/favicon-96x96.png", "./img/apple-touch-icon.png", "./img/web-app-manifest-192x192.png", "./img/web-app-manifest-512x512.png" ];
+let ASSETS = [ "./", "./index.html", "./compiled.css", "./style.css", "./script.js", "./strings.json" ];
+
+try {
+    importScripts("./sw-assets.js");
+    if (self.__TAHARA_SW_MANIFEST && Array.isArray(self.__TAHARA_SW_MANIFEST.assets)) {
+        CACHE_NAME = self.__TAHARA_SW_MANIFEST.cacheName || CACHE_NAME;
+        ASSETS = self.__TAHARA_SW_MANIFEST.assets;
+    }
+} catch (error) {
+    console.warn("SW manifest not found, using fallback asset list", error);
+}
 
 self.addEventListener("install", event => {
     self.skipWaiting();

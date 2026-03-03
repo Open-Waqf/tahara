@@ -4,17 +4,220 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+    @font-face {
+        font-family: 'Amiri';
+        src: url('./fonts/amiri-v30-arabic_latin-regular.woff2');
+        font-display: swap;
+    }
+
     body {
-        /* Sets the default light background */
         @apply bg-rose-50/30 text-slate-700 transition-colors duration-300;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        overflow-x: hidden;
+        overscroll-behavior-y: none;
     }
 
     body.dark {
-        /* Sets the default dark background */
         @apply bg-[#1a1617] text-rose-100;
     }
 
     body.dark.oled {
         @apply bg-black;
+    }
+
+    nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+    }
+
+    main {
+        transform: translateZ(0);
+        will-change: transform;
+    }
+
+    #langSelect {
+        appearance: none;
+        -webkit-appearance: none;
+        background: rgba(251, 113, 133, 0.1);
+        padding: 6px 16px;
+        border-radius: 20px;
+        color: #e11d48;
+        font-weight: 700;
+        border: 1px solid rgba(251, 113, 133, 0.2);
+        outline: none;
+        text-align: center;
+    }
+
+    #langSelect option {
+        background-color: #fff;
+        color: #334155;
+    }
+
+    body.dark #langSelect {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fecdd3;
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    body.dark #langSelect option {
+        background-color: #2d2426;
+        color: #fecdd3;
+    }
+
+    button:focus-visible,
+    a:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+        outline: 2px solid #fb7185 !important;
+        outline-offset: 4px !important;
+        border-radius: 4px;
+    }
+
+    html[dir="rtl"] * {
+        letter-spacing: normal !important;
+    }
+
+    html[style*="opacity: 0"] body {
+        background-color: #fff1f2;
+        animation: pulse 2s infinite ease-in-out;
+    }
+
+    html.dark[style*="opacity: 0"] body {
+        background-color: #1a1617;
+    }
+}
+
+@layer components {
+    .status-orb {
+        width: 280px;
+        height: 280px;
+        border-radius: 50%;
+        margin: 40px auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        box-shadow: 0 20px 50px rgba(251, 113, 133, 0.15);
+        border: 8px solid #fff;
+        position: relative;
+        transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        will-change: transform, box-shadow;
+        transform: translateZ(0);
+    }
+
+    .status-orb::after {
+        content: '';
+        position: absolute;
+        inset: -12px;
+        border-radius: 50%;
+        border: 1px dashed #fb7185;
+        opacity: 0.3;
+        animation: rotate 20s linear infinite;
+        will-change: transform;
+    }
+
+    body.dark .status-orb {
+        background: #241e1f;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        border-color: #332a2c;
+    }
+
+    .action-btn {
+        color: #fff;
+        padding: 16px 48px;
+        border-radius: 50px;
+        font-weight: 700;
+        box-shadow: 0 10px 20px rgba(251, 113, 133, 0.2);
+        transition: all 0.2s ease;
+    }
+
+    .action-btn:active {
+        transform: scale(0.95);
+    }
+}
+
+@layer utilities {
+    .animate-fade-in {
+        animation: fadeIn 0.4s ease-out forwards;
+    }
+
+    .status-hayd-pulse {
+        animation: softPulse 3s infinite ease-in-out;
+    }
+
+    #calendarDays div {
+        transition: all 0.2s ease;
+    }
+
+    #calMonthYear {
+        min-width: 120px;
+        text-align: center;
+    }
+
+    #modalContent {
+        max-height: 96vh;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        border-top: 1px solid transparent;
+        will-change: transform;
+        transform: translateZ(0);
+    }
+
+    body.dark #modalContent {
+        background: #1f1a1b;
+        border-top: 1px solid #3d2e31;
+    }
+
+    #modalContent > div.overflow-y-auto {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        will-change: scroll-position;
+        padding-bottom: 40px;
+    }
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes softPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 20px 50px rgba(251, 113, 133, 0.2);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 20px 60px rgba(251, 113, 133, 0.4);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.8;
     }
 }

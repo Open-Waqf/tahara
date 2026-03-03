@@ -16,34 +16,62 @@ export const TaharaEngine = {
     calculateAverages: (history, rules = null, habitDays = 0) => {
         if (!history || history.length < 2) return {avgCycleLengthMs: 0, avgHaydLengthMs: 0};
 
-        const haydStarts = history.filter(e => e.status === 'hayd').map(e => new Date(e.time));
+        // Normalize timestamps to milliseconds to support both ISO strings and numeric values.
+        const normalized = history
+            .map(entry => {
+                const timeMs = new Date(entry.time).getTime();
+                return {...entry, timeMs};
+            })
+            .filter(entry =>
+                (entry.status === 'hayd' || entry.status === 'purity')
+                && Number.isFinite(entry.timeMs)
+            );
 
-        let avgCycleLengthMs = 0;
-        if (haydStarts.length >= 2) {
-            let totalCycleMs = 0;
-            for (let i = 0; i < haydStarts.length - 1; i++) {
-                totalCycleMs += (haydStarts[i] - haydStarts[i + 1]);
+        if (normalized.length < 2) return {avgCycleLengthMs: 0, avgHaydLengthMs: 0};
+
+        // 1. Ensure history is sorted newest first (just in case)
+        const sorted = [...normalized].sort((a, b) => b.timeMs - a.timeMs);
+
+        // 2. Identify unique status transitions (ignoring duplicates)
+        const cleanHistory = [];
+        for (const entry of sorted) {
+            if (cleanHistory.length === 0 || cleanHistory[cleanHistory.length - 1].status !== entry.status) {
+                cleanHistory.push(entry);
             }
-            avgCycleLengthMs = totalCycleMs / (haydStarts.length - 1);
         }
 
-        // Determine effective max hayd for truncation
+        if (cleanHistory.length < 2) return {avgCycleLengthMs: 0, avgHaydLengthMs: 0};
+
+        // 3. Cycle Length: Hayd Start to Hayd Start
+        const haydStarts = cleanHistory.filter(e => e.status === 'hayd');
+        let avgCycleLengthMs = 0;
+        if (haydStarts.length >= 2) {
+            const minTuhrMs = rules?.minTuhrMs || 0;
+            let totalCycleMs = 0;
+            let validCycleCount = 0;
+            for (let i = 0; i < haydStarts.length - 1; i++) {
+                const cycleMs = haydStarts[i].timeMs - haydStarts[i + 1].timeMs;
+                // Ignore overlap/istihadah-like cycle fragments shorter than minimum tuhr.
+                if (cycleMs >= minTuhrMs) {
+                    totalCycleMs += cycleMs;
+                    validCycleCount++;
+                }
+            }
+            avgCycleLengthMs = validCycleCount > 0 ? totalCycleMs / validCycleCount : 0;
+        }
+
+        // 4. Hayd Duration: Hayd Start to Purity Start (next entry in cleanHistory is purity)
         let effectiveMaxMs = rules?.maxHaydMs || (15 * 24 * 60 * 60 * 1000);
         if (habitDays > 0 && rules?.dynamicMaxHayd) {
-            // Maliki: Habit + 3 days, max 15
             effectiveMaxMs = Math.min(15 * 24 * 60 * 60 * 1000, (habitDays + 3) * 24 * 60 * 60 * 1000);
         }
 
         let totalHaydMs = 0, haydCount = 0;
-        for (let i = 0; i < history.length - 1; i++) {
-            if (history[i + 1].status === 'hayd' && history[i].status === 'purity') {
-                let duration = (new Date(history[i].time) - new Date(history[i + 1].time));
-                
-                // Truncate invalid history entries based on rules
-                if (duration > effectiveMaxMs) {
-                    duration = effectiveMaxMs;
-                }
-                
+        for (let i = 0; i < cleanHistory.length - 1; i++) {
+            // Since cleanHistory is toggled, if i is Purity, i+1 MUST be Hayd (going backwards in time)
+            if (cleanHistory[i].status === 'purity' && cleanHistory[i+1].status === 'hayd') {
+                let duration = cleanHistory[i].timeMs - cleanHistory[i+1].timeMs;
+                if (duration > effectiveMaxMs) duration = effectiveMaxMs;
                 totalHaydMs += duration;
                 haydCount++;
             }
@@ -64,14 +92,16 @@ export const TaharaEngine = {
      */
     getFiqhContext: (status, lastChanged, now, rules = null, habitDays = 0) => {
         const lastDate = new Date(lastChanged);
+        const hasValidLastDate = Number.isFinite(lastDate.getTime());
+        const safeLastDate = hasValidLastDate ? lastDate : now;
         
         // Exact millisecond difference for rule durations
-        const msDiff = now.getTime() - lastDate.getTime();
+        const msDiff = Math.max(0, now.getTime() - safeLastDate.getTime());
         
         // Calendar day difference for Day 0 logic
         const utc1 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-        const utc2 = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-        const days = Math.floor((utc1 - utc2) / (1000 * 60 * 60 * 24));
+        const utc2 = Date.UTC(safeLastDate.getFullYear(), safeLastDate.getMonth(), safeLastDate.getDate());
+        const days = Math.max(0, Math.floor((utc1 - utc2) / (1000 * 60 * 60 * 24)));
         
         const hour = now.getHours();
 
