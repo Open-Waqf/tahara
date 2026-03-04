@@ -1,9 +1,8 @@
-let CACHE_NAME = 'tahara-v2';
+let CACHE_NAME = 'tahara-v2.3';
 let ASSETS = [
     './',
     './index.html',
     './compiled.css',
-    './style.css',
     './script.js',
     './strings.json'
 ];

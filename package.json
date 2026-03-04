@@ -1,6 +1,6 @@
 {
   "name": "tahara",
-  "version": "2",
+  "version": "2.3",
   "description": "Private Islamic Purity Tracker",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,9 @@
     "test:unit": "npm run generate:sw-manifest && vitest run engine.test.js backup.test.js db.test.js sw-manifest.test.js",
     "test:e2e": "playwright test",
     "test:security": "vitest run backup.test.js db.test.js && playwright test -g \"Backup Restore Security|Backup Restore UX|Vault Lock State\"",
-    "test": "npm run test:unit && npm run test:e2e"
+    "test": "npm run test:unit && npm run test:e2e",
+    "android:sync:win": "npm run build && npx cap sync android && node scripts/sync-android-win.mjs",
+    "android:open:win": "npm run build && npx cap sync android && node scripts/sync-android-win.mjs --open"
   },
   "size-limit": [
     {
@@ -34,23 +36,23 @@
   "type": "commonjs",
   "dependencies": {
     "@aparajita/capacitor-secure-storage": "^8.0.0",
-    "@capacitor/android": "^8.0.2",
-    "@capacitor/app": "^8.0.0",
-    "@capacitor/core": "^8.0.2",
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.1.0",
     "@capacitor/filesystem": "8.1.2",
     "@capacitor/local-notifications": "8.0.1",
     "@capacitor/share": "8.0.1",
-    "@capacitor/status-bar": "^8.0.0",
+    "@capacitor/status-bar": "^8.0.1",
     "@capgo/capacitor-native-biometric": "^8.4.2",
-    "@tailwindcss/cli": "^4.1.18"
+    "@tailwindcss/cli": "^4.2.1"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.0.2",
+    "@capacitor/cli": "^8.1.0",
     "@playwright/test": "1.58.2",
-    "@size-limit/file": "^11.1.0",
-    "serve": "14.2.5",
-    "size-limit": "^11.1.0",
+    "@size-limit/file": "^12.0.0",
+    "serve": "14.2.6",
+    "size-limit": "^12.0.0",
     "vitest": "4.0.18"
   }
 }
