@@ -1,6 +1,6 @@
-let CACHE_NAME = "tahara-v2";
+let CACHE_NAME = "tahara-v2.3";
 
-let ASSETS = [ "./", "./index.html", "./compiled.css", "./style.css", "./script.js", "./strings.json" ];
+let ASSETS = [ "./", "./index.html", "./compiled.css", "./script.js", "./strings.json" ];
 
 try {
     importScripts("./sw-assets.js");
